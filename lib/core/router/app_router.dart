@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../constants/app_constants.dart';
 
 // Import Screens (we will create these file skeletons in the next step)
 import '../../views/auth/login_screen.dart';
@@ -28,6 +30,21 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/login',
+    redirect: (context, state) async {
+      final prefs = await SharedPreferences.getInstance();
+      final loggedIn = prefs.getString(AppConstants.authTokenKey) != null;
+      final isAuthRoute = state.uri.toString() == '/login' ||
+                          state.uri.toString() == '/register' ||
+                          state.uri.toString() == '/forgot-password';
+
+      if (!loggedIn && !isAuthRoute) {
+        return '/login';
+      }
+      if (loggedIn && isAuthRoute) {
+        return '/';
+      }
+      return null;
+    },
     routes: [
       // Authentication Routes
       GoRoute(

@@ -5,6 +5,7 @@ import '../repositories/task_repository.dart';
 import '../repositories/notification_repository.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
+import '../viewmodels/auth_viewmodel.dart';
 
 // Services Providers
 final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
@@ -33,4 +34,10 @@ final taskRepositoryProvider = Provider<TaskRepository>((ref) {
 
 final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
   return NotificationRepository();
+});
+
+// ViewModels Providers
+final authViewModelProvider = StateNotifierProvider<AuthViewModel, AuthState>((ref) {
+  final repository = ref.watch(authRepositoryProvider);
+  return AuthViewModel(repository);
 });
