@@ -14,7 +14,9 @@ class SyncService {
     _connectivityService.connectionStream.listen((isOnline) {
       if (isOnline) {
         if (kDebugMode) {
-          print('[SyncService] Device is online. Starting pending synchronization queue...');
+          print(
+            '[SyncService] Device is online. Starting pending synchronization queue...',
+          );
         }
         triggerSync();
       }
@@ -36,7 +38,9 @@ class SyncService {
       }
 
       if (kDebugMode) {
-        print('[SyncService] Found ${actions.length} pending offline actions to sync.');
+        print(
+          '[SyncService] Found ${actions.length} pending offline actions to sync.',
+        );
       }
 
       for (var action in actions) {
@@ -44,12 +48,16 @@ class SyncService {
         if (success) {
           await _dbHelper.dequeueAction(action.id);
           if (kDebugMode) {
-            print('[SyncService] Synchronized action ${action.id} (${action.actionType}) successfully. Dequeued.');
+            print(
+              '[SyncService] Synchronized action ${action.id} (${action.actionType}) successfully. Dequeued.',
+            );
           }
         } else {
           // If a request fails, we stop the sync sequence to maintain order
           if (kDebugMode) {
-            print('[SyncService] Failed to sync action ${action.id}. Pausing synchronization.');
+            print(
+              '[SyncService] Failed to sync action ${action.id}. Pausing synchronization.',
+            );
           }
           break;
         }
@@ -70,27 +78,61 @@ class SyncService {
       // e.g. DioClient.instance.post(url, data: data)
       switch (action.actionType) {
         case 'CREATE_TASK':
-          if (kDebugMode) print('[SyncService] REST Mock Post: Creating task: ${data["title"]}');
+          if (kDebugMode) {
+            print(
+              '[SyncService] REST Mock Post: Creating task: ${data["title"]}',
+            );
+          }
           // Mock Network delay
           await Future.delayed(const Duration(seconds: 1));
           return true;
 
         case 'UPDATE_TASK':
-          if (kDebugMode) print('[SyncService] REST Mock Put: Updating task: ${data["id"]}');
+          if (kDebugMode) {
+            print('[SyncService] REST Mock Put: Updating task: ${data["id"]}');
+          }
           await Future.delayed(const Duration(seconds: 1));
           return true;
 
         case 'CREATE_PROJECT':
-          if (kDebugMode) print('[SyncService] REST Mock Post: Creating project: ${data["name"]}');
+          if (kDebugMode) {
+            print(
+              '[SyncService] REST Mock Post: Creating project: ${data["name"]}',
+            );
+          }
+          await Future.delayed(const Duration(seconds: 1));
+          return true;
+
+        case 'ADD_PROJECT_MEMBER':
+          if (kDebugMode) {
+            print(
+              '[SyncService] REST Mock Post: Adding ${data["user_email"]} '
+              'to project ${data["project_id"]}',
+            );
+          }
+          await Future.delayed(const Duration(seconds: 1));
+          return true;
+
+        case 'REMOVE_PROJECT_MEMBER':
+          if (kDebugMode) {
+            print(
+              '[SyncService] REST Mock Delete: Removing ${data["user_id"]} '
+              'from project ${data["project_id"]}',
+            );
+          }
           await Future.delayed(const Duration(seconds: 1));
           return true;
 
         default:
-          if (kDebugMode) print('[SyncService] Unknown action type: ${action.actionType}');
+          if (kDebugMode) {
+            print('[SyncService] Unknown action type: ${action.actionType}');
+          }
           return false;
       }
     } catch (e) {
-      if (kDebugMode) print('[SyncService] API Error processing action ${action.id}: $e');
+      if (kDebugMode) {
+        print('[SyncService] API Error processing action ${action.id}: $e');
+      }
       return false;
     }
   }

@@ -147,8 +147,93 @@ class DbHelper {
 
   Future<List<Project>> getCachedProjects() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('projects');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'projects',
+      orderBy: 'created_at DESC',
+    );
     return maps.map((m) => Project.fromJson(m)).toList();
+  }
+
+  Future<Project?> getCachedProject(String projectId) async {
+    final db = await database;
+    final maps = await db.query(
+      'projects',
+      where: 'id = ?',
+      whereArgs: [projectId],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return Project.fromJson(maps.first);
+  }
+
+  Future<void> cacheProjectMembers(
+    String projectId,
+    List<ProjectMember> members,
+  ) async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'project_members',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
+
+      for (final member in members) {
+        await transaction.insert('users', {
+          ...member.toJson(),
+          'created_at': DateTime.now().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        await transaction.insert('project_members', {
+          'project_id': projectId,
+          'user_id': member.id,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<ProjectMember>> getCachedProjectMembers(String projectId) async {
+    final db = await database;
+    final maps = await db.rawQuery(
+      '''
+      SELECT users.id, users.name, users.email, users.role
+      FROM users
+      INNER JOIN project_members
+        ON project_members.user_id = users.id
+      WHERE project_members.project_id = ?
+      ORDER BY users.name COLLATE NOCASE ASC
+      ''',
+      [projectId],
+    );
+    return maps.map(ProjectMember.fromJson).toList();
+  }
+
+  Future<void> addCachedProjectMember(
+    String projectId,
+    ProjectMember member,
+  ) async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.insert('users', {
+        ...member.toJson(),
+        'created_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await transaction.insert('project_members', {
+        'project_id': projectId,
+        'user_id': member.id,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+  }
+
+  Future<void> removeCachedProjectMember(
+    String projectId,
+    String userId,
+  ) async {
+    final db = await database;
+    await db.delete(
+      'project_members',
+      where: 'project_id = ? AND user_id = ?',
+      whereArgs: [projectId, userId],
+    );
   }
 
   Future<void> deleteCachedProject(String projectId) async {
@@ -226,10 +311,6 @@ class DbHelper {
 
   Future<void> dequeueAction(String actionId) async {
     final db = await database;
-    await db.delete(
-      'pending_actions',
-      where: 'id = ?',
-      whereArgs: [actionId],
-    );
+    await db.delete('pending_actions', where: 'id = ?', whereArgs: [actionId]);
   }
 }
