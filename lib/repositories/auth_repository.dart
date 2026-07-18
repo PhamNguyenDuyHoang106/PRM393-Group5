@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import '../core/database/db_helper.dart';
@@ -166,18 +167,27 @@ class AuthRepository {
   }
 
   Future<void> resetPassword(String email) async {
+    final fbAuth = _firebaseAuth;
+
+    if (fbAuth != null) {
+      // Firebase is initialized — send real reset email.
+      // Let any FirebaseAuthException bubble up so the UI can show the real error
+      // (e.g. "user not found", "invalid email", etc.).
+      await fbAuth.sendPasswordResetEmail(email: email);
+      return;
+    }
+
+    // Firebase not configured — try the REST API instead.
     try {
-      final fbAuth = _firebaseAuth;
-      if (fbAuth != null) {
-        await fbAuth.sendPasswordResetEmail(email: email);
-        return;
-      }
-      
-      // REST API call
       await _dioClient.dio.post('/auth/reset-password', data: {'email': email});
-    } catch (e) {
-      // Mock success for offline/MVP
-      await Future.delayed(const Duration(seconds: 1));
+      return;
+    } catch (apiError) {
+      // API also unavailable (offline / not deployed).
+      // In a real app you would throw here; for MVP we log and return a mock success
+      // so the UX is not blocked during development without a backend.
+      debugPrint('[AuthRepository] resetPassword: Firebase not configured and API '
+          'unreachable. Running in mock mode — no email was actually sent. Error: $apiError');
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 

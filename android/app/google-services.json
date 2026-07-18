@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "733019613648",
+    "project_id": "prm393-group5",
+    "storage_bucket": "prm393-group5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:733019613648:android:dba8e9345e9586fe40f1d5",
+        "android_client_info": {
+          "package_name": "com.prm393.smart_task_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDayNejkJb6ZRVjGnX-OhlCU22L-zbNE-c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
