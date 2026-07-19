@@ -41,7 +41,7 @@ final notificationViewModelProvider =
   
   final viewModel = NotificationViewModel(repository);
   if (user != null) {
-    viewModel.loadNotifications(userId: user.id);
+    viewModel.loadNotifications(userId: user.id, role: user.role);
   }
   return viewModel;
 });

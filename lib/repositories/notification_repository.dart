@@ -5,7 +5,7 @@ import '../models/notification.dart';
 class NotificationRepository {
   final DbHelper _dbHelper = DbHelper.instance;
 
-  Future<List<AppNotification>> getNotifications({String? userId}) async {
+  Future<List<AppNotification>> getNotifications({String? userId, String? role}) async {
     try {
       final cached = await _dbHelper.getCachedNotifications(userId: userId);
       
@@ -18,12 +18,15 @@ class NotificationRepository {
 
       await Future.delayed(const Duration(milliseconds: 500));
       if (userId != null) {
+        final isManager = role?.toLowerCase() == 'manager';
         final seed = [
           AppNotification(
             id: 'notif_${userId}_001',
             userId: userId,
-            title: 'Welcome to Smart Task!',
-            message: 'Hello! You have registered successfully. Get started by viewing your projects.',
+            title: isManager ? 'New Member Joined Project' : 'New Task Assigned',
+            message: isManager
+                ? 'Nguyen Member has accepted the invitation to join project "Smart Task App".'
+                : 'You have been assigned to "Integrate Dio Client" by Hoang Manager.',
             readStatus: 0,
             createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
           ),

@@ -74,11 +74,10 @@ class NotificationViewModel extends StateNotifier<NotificationState> {
     loadNotifications();
   }
 
-  /// Tải danh sách thông báo khi vào màn.
-  Future<void> loadNotifications({String? userId}) async {
+  Future<void> loadNotifications({String? userId, String? role}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final notifs = await _notificationRepository.getNotifications(userId: userId);
+      final notifs = await _notificationRepository.getNotifications(userId: userId, role: role);
       // Sắp xếp mới nhất lên đầu
       notifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       state = state.copyWith(notifications: notifs, isLoading: false);
@@ -127,9 +126,8 @@ class NotificationViewModel extends StateNotifier<NotificationState> {
     state = state.copyWith(activeFilter: filter);
   }
 
-  /// Reload thông báo (pull-to-refresh).
-  Future<void> refresh({String? userId}) async {
-    await loadNotifications(userId: userId);
+  Future<void> refresh({String? userId, String? role}) async {
+    await loadNotifications(userId: userId, role: role);
   }
 
   /// Xoá thông báo lỗi.

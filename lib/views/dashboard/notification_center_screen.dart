@@ -17,7 +17,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = ref.read(authViewModelProvider).user;
-      ref.read(notificationViewModelProvider.notifier).loadNotifications(userId: user?.id);
+      ref.read(notificationViewModelProvider.notifier).loadNotifications(
+        userId: user?.id,
+        role: user?.role,
+      );
     });
   }
 
@@ -103,7 +106,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     return RefreshIndicator(
       onRefresh: () {
         final user = ref.read(authViewModelProvider).user;
-        return notifier.refresh(userId: user?.id);
+        return notifier.refresh(userId: user?.id, role: user?.role);
       },
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
