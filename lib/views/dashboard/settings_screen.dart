@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../app.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/settings_viewmodel.dart';
+
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -12,8 +14,9 @@ class SettingsScreen extends ConsumerWidget {
     final settingsState = ref.watch(settingsViewModelProvider);
     final settingsNotifier = ref.read(settingsViewModelProvider.notifier);
     final authUser = ref.watch(authViewModelProvider).user;
+    final isDark = settingsState.isDarkMode;
 
-    // Tự động đồng bộ thông tin user từ Auth sang Settings nếu Settings trống
+    // Automatically sync user profile info from Auth VM
     if (settingsState.userEmail.isEmpty && authUser != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         settingsNotifier.saveUserInfo(
@@ -25,65 +28,228 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cài đặt')),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: const Text(
+          'Settings',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         children: [
-          _buildUserProfileHeader(settingsState),
-          const SizedBox(height: 12),
-          const Divider(),
-          _buildSectionHeader('Giao diện & Tiện ích'),
-          SwitchListTile(
-            title: const Text('Giao diện tối (Dark Mode)'),
-            subtitle: const Text('Chuyển đổi tông màu sáng hoặc tối của ứng dụng'),
-            secondary: const Icon(Icons.dark_mode_outlined),
-            value: settingsState.isDarkMode,
-            onChanged: (val) => settingsNotifier.toggleDarkMode(),
+          _buildUserProfileHeader(settingsState, isDark),
+          const SizedBox(height: 24),
+          
+          _buildSectionHeader('PREFERENCES'),
+          _buildSettingsGroup(
+            isDark: isDark,
+            children: [
+              SwitchListTile(
+                title: Text(
+                  'Dark Mode',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Adjust application color theme'),
+                secondary: Icon(
+                  Icons.dark_mode_rounded,
+                  color: isDark ? Colors.cyanAccent : Colors.indigo,
+                ),
+                value: settingsState.isDarkMode,
+                onChanged: (val) {
+                  settingsNotifier.toggleDarkMode();
+                  ref.read(themeModeProvider.notifier).state =
+                      val ? ThemeMode.dark : ThemeMode.light;
+                },
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+            ],
           ),
-          const Divider(),
-          _buildSectionHeader('Thông báo'),
-          SwitchListTile(
-            title: const Text('Thông báo đẩy (Push Notifications)'),
-            subtitle: const Text('Nhận cảnh báo thời hạn công việc'),
-            secondary: const Icon(Icons.notifications_active_outlined),
-            value: settingsState.isPushNotificationEnabled,
-            onChanged: (val) => settingsNotifier.togglePushNotifications(),
+          const SizedBox(height: 20),
+
+          _buildSectionHeader('NOTIFICATIONS'),
+          _buildSettingsGroup(
+            isDark: isDark,
+            children: [
+              SwitchListTile(
+                title: Text(
+                  'Push Notifications',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Receive warnings for task deadlines'),
+                secondary: const Icon(Icons.notifications_active_rounded, color: Colors.blueAccent),
+                value: settingsState.isPushNotificationEnabled,
+                onChanged: (val) => settingsNotifier.togglePushNotifications(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+              const Divider(height: 1, indent: 56),
+              SwitchListTile(
+                title: Text(
+                  'Notification Sounds',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Play sound on new alerts'),
+                secondary: const Icon(Icons.volume_up_rounded, color: Colors.green),
+                value: settingsState.isNotificationSoundEnabled,
+                onChanged: (val) => settingsNotifier.toggleNotificationSound(),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+            ],
           ),
-          SwitchListTile(
-            title: const Text('Âm thanh thông báo'),
-            subtitle: const Text('Phát âm thanh khi có thông báo mới'),
-            secondary: const Icon(Icons.volume_up_outlined),
-            value: settingsState.isNotificationSoundEnabled,
-            onChanged: (val) => settingsNotifier.toggleNotificationSound(),
+          const SizedBox(height: 20),
+
+          _buildSectionHeader('SYSTEM & DATA'),
+          _buildSettingsGroup(
+            isDark: isDark,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.cleaning_services_rounded, color: Colors.amber),
+                title: Text(
+                  'Clear Local Cache',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Wipe offline SQLite database data'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => _showClearCacheDialog(context, settingsNotifier, isDark),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+              const Divider(height: 1, indent: 56),
+              ListTile(
+                leading: const Icon(Icons.info_rounded, color: Colors.teal),
+                title: Text(
+                  'About Application',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Smart Task Management v1.0.0 (PRM393 MVP)'),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+            ],
           ),
-          const Divider(),
-          _buildSectionHeader('Dữ liệu & Hệ thống'),
-          ListTile(
-            leading: const Icon(Icons.storage_outlined, color: Colors.amber),
-            title: const Text('Xóa bộ nhớ đệm (Clear Cache)'),
-            subtitle: const Text('Xóa dữ liệu cached offline trong SQLite'),
-            onTap: () => _showClearCacheDialog(context, settingsNotifier),
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Về ứng dụng'),
-            subtitle: const Text('Smart Task Management v1.0.0 (PRM393 MVP)'),
-            onTap: () {},
-          ),
-          const Divider(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 32),
+
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: Colors.redAccent.shade400,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 2,
+                shadowColor: Colors.redAccent.withAlpha(76),
               ),
-              icon: const Icon(Icons.logout),
-              label: const Text('Đăng xuất tài khoản', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () => _showLogoutDialog(context, ref),
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              label: const Text(
+                'Log Out Account',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              onPressed: () => _showLogoutDialog(context, ref, isDark),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserProfileHeader(SettingsState settingsState, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark 
+              ? [const Color(0xFF1E293B), const Color(0xFF334155)] 
+              : [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : Colors.indigo.withAlpha(51),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white24,
+            ),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: Colors.white,
+              child: Text(
+                settingsState.avatarInitial,
+                style: TextStyle(
+                  fontSize: 24, 
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFF4F46E5), 
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  settingsState.userName,
+                  style: const TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  settingsState.userEmail,
+                  style: const TextStyle(
+                    fontSize: 13, 
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(51),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    settingsState.userRole.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 11, 
+                      color: Colors.white, 
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -91,114 +257,99 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildUserProfileHeader(SettingsState settingsState) {
+  Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: Colors.blueAccent,
-                child: Text(
-                  settingsState.avatarInitial,
-                  style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      settingsState.userName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      settingsState.userEmail,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withAlpha(25),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        settingsState.userRole.toUpperCase(),
-                        style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+      padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 12, 
+          fontWeight: FontWeight.bold, 
+          color: Color(0xFF64748B),
+          letterSpacing: 1.2,
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+  Widget _buildSettingsGroup({required List<Widget> children, required bool isDark}) {
+    return Card(
+      elevation: 0,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.white10 : Colors.grey.shade200,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: children,
       ),
     );
   }
 
-  void _showClearCacheDialog(BuildContext context, settingsNotifier) {
+  void _showClearCacheDialog(BuildContext context, settingsNotifier, bool isDark) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận xóa bộ nhớ đệm?'),
-        content: const Text(
-          'Hành động này sẽ xóa toàn bộ dữ liệu cached offline trong SQLite (thông báo, lịch sử hàng chờ sync). Các dữ liệu trên server sẽ không bị ảnh hưởng.',
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Wipe Local Cache?',
+          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B)),
+        ),
+        content: Text(
+          'This action will delete all offline cached database tables (notifications, pending sync queues). Server data remains untouched.',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
             onPressed: () async {
               Navigator.pop(ctx);
               await settingsNotifier.clearCache();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã dọn dẹp cache SQLite thành công!')),
+                  const SnackBar(
+                    content: Text('SQLite cache has been cleared successfully!'),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
             },
-            child: const Text('Xóa cache'),
+            child: const Text('Clear Cache', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  void _showLogoutDialog(BuildContext context, WidgetRef ref, bool isDark) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Bạn muốn đăng xuất?'),
-        content: const Text('Bạn sẽ cần nhập lại tài khoản và mật khẩu để đăng nhập lần sau.'),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Log Out Account?',
+          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B)),
+        ),
+        content: Text(
+          'You will need to input your email and password to log in next time.',
+          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
             onPressed: () async {
               Navigator.pop(ctx);
               await ref.read(authViewModelProvider.notifier).logout();
@@ -206,7 +357,7 @@ class SettingsScreen extends ConsumerWidget {
                 context.go('/login');
               }
             },
-            child: const Text('Đăng xuất'),
+            child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

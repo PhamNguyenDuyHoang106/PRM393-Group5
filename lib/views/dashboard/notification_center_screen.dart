@@ -26,12 +26,12 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        title: const Text('Notifications'),
         actions: [
           if (state.unreadCount > 0)
             TextButton.icon(
               icon: const Icon(Icons.done_all, color: Colors.blue),
-              label: const Text('Đọc tất cả', style: TextStyle(color: Colors.blue)),
+              label: const Text('Mark all as read', style: TextStyle(color: Colors.blue)),
               onPressed: () => notifier.markAllAsRead(),
             ),
         ],
@@ -58,19 +58,19 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
       child: Row(
         children: [
           FilterChip(
-            label: const Text('Tất cả'),
+            label: const Text('All'),
             selected: state.activeFilter == NotificationFilter.all,
             onSelected: (_) => notifier.setFilter(NotificationFilter.all),
           ),
           const SizedBox(width: 8),
           FilterChip(
-            label: Text('Chưa đọc (${state.unreadCount})'),
+            label: Text('Unread (${state.unreadCount})'),
             selected: state.activeFilter == NotificationFilter.unread,
             onSelected: (_) => notifier.setFilter(NotificationFilter.unread),
           ),
           const SizedBox(width: 8),
           FilterChip(
-            label: const Text('Đã đọc'),
+            label: const Text('Read'),
             selected: state.activeFilter == NotificationFilter.read,
             onSelected: (_) => notifier.setFilter(NotificationFilter.read),
           ),
@@ -87,7 +87,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
           Icon(Icons.notifications_off_outlined, size: 72, color: Colors.grey),
           SizedBox(height: 16),
           Text(
-            'Không có thông báo nào',
+            'No notifications found',
             style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
@@ -120,7 +120,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
             onDismissed: (_) {
               notifier.deleteNotification(notif.id);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã xóa thông báo')),
+                const SnackBar(content: Text('Notification deleted')),
               );
             },
             child: ListTile(
@@ -157,9 +157,9 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
 
   String _formatTime(DateTime time) {
     final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'Vừa xong';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
-    if (diff.inHours < 24) return '${diff.inHours} giờ trước';
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
     return '${time.day}/${time.month}/${time.year}';
   }
 }

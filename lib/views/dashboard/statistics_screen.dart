@@ -29,7 +29,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thống kê công việc'),
+        title: const Text('Task Statistics'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -64,11 +64,11 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         children: [
           const Icon(Icons.pie_chart_outline, size: 72, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text('Không có dữ liệu thống kê', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const Text('No statistics data available', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () => ref.read(dashboardViewModelProvider.notifier).loadStatistics(),
-            child: const Text('Thử lại'),
+            child: const Text('Retry'),
           ),
         ],
       ),
@@ -80,12 +80,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       segments: const [
         ButtonSegment<bool>(
           value: true,
-          label: Text('Theo Trạng thái'),
+          label: Text('By Status'),
           icon: Icon(Icons.donut_large),
         ),
         ButtonSegment<bool>(
           value: false,
-          label: Text('Theo Mức độ ưu tiên'),
+          label: Text('By Priority'),
           icon: Icon(Icons.bar_chart),
         ),
       ],
@@ -105,7 +105,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     if (total == 0) {
       return const SizedBox(
         height: 200,
-        child: Center(child: Text('Không có công việc nào')),
+        child: Center(child: Text('No tasks found')),
       );
     }
 
@@ -138,7 +138,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         child: Column(
           children: [
             Text(
-              _showStatusStats ? 'Phân bổ theo trạng thái' : 'Phân bổ theo độ ưu tiên',
+              _showStatusStats ? 'Status Distribution' : 'Priority Distribution',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
