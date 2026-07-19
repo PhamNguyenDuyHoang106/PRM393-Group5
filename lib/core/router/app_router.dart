@@ -21,6 +21,7 @@ import '../../views/dashboard/manager_dashboard_screen.dart';
 import '../../views/dashboard/member_home_screen.dart';
 import '../../views/dashboard/statistics_screen.dart';
 import '../../views/dashboard/notification_center_screen.dart';
+import '../../views/dashboard/settings_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -156,6 +157,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) => const SettingsScreen(),
+          ),
         ],
       ),
 
@@ -235,6 +240,7 @@ class AppShellScaffold extends StatelessWidget {
     if (location.startsWith('/projects')) return 1;
     if (location.startsWith('/tasks')) return 2;
     if (location.startsWith('/profile')) return 3;
+    if (location.startsWith('/settings')) return 4;
     return 0; // default represents dashboard routes
   }
 
@@ -251,6 +257,9 @@ class AppShellScaffold extends StatelessWidget {
         break;
       case 3:
         GoRouter.of(context).go('/profile');
+        break;
+      case 4:
+        GoRouter.of(context).go('/settings');
         break;
     }
   }
@@ -283,6 +292,11 @@ class AppShellScaffold extends StatelessWidget {
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),

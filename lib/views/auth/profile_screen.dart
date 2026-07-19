@@ -489,40 +489,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ] else ...[
-                    // Settings Card for Member 4
-                    Card(
-                      color: isDark ? AppConstants.surfaceDark : AppConstants.surfaceLight,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMd),
-                      ),
-                      elevation: 1,
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.settings_outlined,
-                          color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
-                        ),
-                        title: Text(
-                          'Advanced Settings',
-                          style: TextStyle(
-                            color: isDark ? AppConstants.textDark : AppConstants.textLight,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Offline cache, sound and database configurations',
-                          style: TextStyle(
-                            color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
-                            fontSize: 12,
-                          ),
-                        ),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
-                        ),
-                        onTap: () => context.push('/settings'),
-                      ),
-                    ),
-                    const SizedBox(height: AppConstants.paddingMd),
                     // Edit Profile Button (Now stacked above Logout, full-width)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 20),
