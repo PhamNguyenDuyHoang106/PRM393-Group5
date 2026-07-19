@@ -9,21 +9,18 @@ class ManagerDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authViewModelProvider).user;
-    final projects = ref.watch(projectViewModelProvider).projects;
-    final tasks = ref.watch(taskViewModelProvider).tasks;
+    final dashboardState = ref.watch(dashboardViewModelProvider);
+    final stats = dashboardState.statistics;
 
-    final projectCount = projects.length;
-    final totalTasksCount = tasks.length;
-    final completedTasksCount = tasks.where((t) => t.status == 'DONE').length;
+    final projectCount = stats?.totalProjects ?? 0;
+    final totalTasksCount = stats?.totalTasks ?? 0;
+    final completedTasksCount = stats?.completedTasks ?? 0;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final pState = ref.read(projectViewModelProvider);
-      if (pState.projects.isEmpty && !pState.isLoadingProjects && pState.errorMessage == null) {
-        ref.read(projectViewModelProvider.notifier).loadProjects();
-      }
-      final tState = ref.read(taskViewModelProvider);
-      if (tState.tasks.isEmpty && !tState.isLoadingTasks && tState.errorMessage == null) {
-        ref.read(taskViewModelProvider.notifier).loadTasks();
+      if (dashboardState.statistics == null &&
+          !dashboardState.isLoading &&
+          dashboardState.errorMessage == null) {
+        ref.read(dashboardViewModelProvider.notifier).loadStatistics();
       }
     });
 
@@ -39,12 +36,13 @@ class ManagerDashboardScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await ref.read(projectViewModelProvider.notifier).loadProjects();
-          await ref.read(taskViewModelProvider.notifier).loadTasks();
+          await ref.read(dashboardViewModelProvider.notifier).refreshData();
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+        child: dashboardState.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

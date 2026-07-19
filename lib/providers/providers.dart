@@ -6,6 +6,7 @@ import '../viewmodels/auth_viewmodel.dart';
 export 'project_provider.dart';
 export 'service_providers.dart';
 export 'task_provider.dart';
+export 'dashboard_provider.dart';
 
 // Repository Providers
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

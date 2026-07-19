@@ -37,7 +37,36 @@ class NotificationRepository {
       // Put read status to API
       // await _dioClient.dio.put('/notifications/${notification.id}', data: updated.toJson());
     } catch (_) {
-      // Suppress network errors for notification sync
+      // Suppress network errors
+    }
+  }
+
+  Future<void> markAllAsRead() async {
+    final notifs = await _dbHelper.getCachedNotifications();
+    final updated = notifs.map((n) => n.copyWith(readStatus: 1)).toList();
+    await _dbHelper.cacheNotifications(updated);
+
+    try {
+      // Put read status to API
+      // await _dioClient.dio.put('/notifications/read-all');
+    } catch (_) {
+      // Suppress network errors
+    }
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    final db = await _dbHelper.database;
+    await db.delete(
+      'notifications',
+      where: 'id = ?',
+      whereArgs: [notificationId],
+    );
+
+    try {
+      // Delete notification on API
+      // await _dioClient.dio.delete('/notifications/$notificationId');
+    } catch (_) {
+      // Suppress network errors
     }
   }
 }

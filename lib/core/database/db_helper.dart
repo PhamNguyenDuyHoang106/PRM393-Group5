@@ -5,6 +5,7 @@ import '../../models/project.dart';
 import '../../models/task.dart';
 import '../../models/notification.dart';
 import '../../models/pending_action.dart';
+import '../../models/statistics.dart';
 
 class DbHelper {
   DbHelper._privateConstructor();
@@ -328,6 +329,51 @@ class DbHelper {
   Future<void> deleteCachedTask(String taskId) async {
     final db = await database;
     await db.delete('tasks', where: 'id = ?', whereArgs: [taskId]);
+  }
+
+  // Calculate statistics from local tables
+  Future<Statistics> getLocalStatistics() async {
+    final db = await database;
+    final projectCountRes = await db.rawQuery('SELECT COUNT(*) as count FROM projects');
+    final taskCountRes = await db.rawQuery('SELECT COUNT(*) as count FROM tasks');
+    final completedCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'");
+    final pendingCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'");
+    
+    // Simple date comparison for overdue tasks
+    final nowStr = DateTime.now().toIso8601String();
+    final overdueCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?", [nowStr]);
+
+    final projectCount = Sqflite.firstIntValue(projectCountRes) ?? 0;
+    final taskCount = Sqflite.firstIntValue(taskCountRes) ?? 0;
+    final completedCount = Sqflite.firstIntValue(completedCountRes) ?? 0;
+    final pendingCount = Sqflite.firstIntValue(pendingCountRes) ?? 0;
+    final overdueCount = Sqflite.firstIntValue(overdueCountRes) ?? 0;
+
+    final statusRes = await db.rawQuery('SELECT status, COUNT(*) as count FROM tasks GROUP BY status');
+    final priorityRes = await db.rawQuery('SELECT priority, COUNT(*) as count FROM tasks GROUP BY priority');
+
+    final Map<String, int> statusDist = {};
+    for (var r in statusRes) {
+      if (r['status'] != null) {
+        statusDist[r['status'] as String] = r['count'] as int;
+      }
+    }
+    final Map<String, int> priorityDist = {};
+    for (var r in priorityRes) {
+      if (r['priority'] != null) {
+        priorityDist[r['priority'] as String] = r['count'] as int;
+      }
+    }
+
+    return Statistics(
+      totalProjects: projectCount,
+      totalTasks: taskCount,
+      completedTasks: completedCount,
+      pendingTasks: pendingCount,
+      overdueTasks: overdueCount,
+      taskStatusDistribution: statusDist,
+      taskPriorityDistribution: priorityDist,
+    );
   }
 
   // Notifications Cache
