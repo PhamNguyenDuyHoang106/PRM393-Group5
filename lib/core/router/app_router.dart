@@ -93,8 +93,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path.startsWith('/projects/create') ||
             (path.startsWith('/projects/') && path.endsWith('/members')) ||
             path.startsWith('/tasks/create') ||
-            path.contains('/edit') ||
-            path.startsWith('/stats');
+            path.contains('/edit');
 
         if (isManagerOnlyPath && !isManager) {
           debugPrint('[Router] Redirecting Member from Manager path: $path');
