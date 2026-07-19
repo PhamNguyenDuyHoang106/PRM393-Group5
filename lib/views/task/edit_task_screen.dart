@@ -282,7 +282,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
               if (taskState.errorMessage != null) ...[
                 const SizedBox(height: AppConstants.paddingMd),
                 Text(
-                  taskState.errorMessage,
+                  taskState.errorMessage!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],

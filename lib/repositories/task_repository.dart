@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/database/db_helper.dart';
 import '../core/network/dio_client.dart';
+import '../core/security/permission_service.dart';
 import '../models/task.dart';
 import '../models/pending_action.dart';
 
@@ -88,7 +89,11 @@ class TaskRepository {
     String? assignedTo,
     DateTime? dueDate,
     required bool isOnline,
+    required String currentUserId,
   }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'create tasks');
+
     final newTask = Task(
       id: _uuid.v4(),
       projectId: projectId,
@@ -124,7 +129,38 @@ class TaskRepository {
     return newTask;
   }
 
-  Future<Task> updateTask(Task task, bool isOnline) async {
+  Future<Task> updateTask({
+    required Task task,
+    required bool isOnline,
+    required String currentUserId,
+  }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    if (caller == null) {
+      throw const TaskException('Permission Denied: Logged-in user not found.');
+    }
+
+    final existingTask = await _dbHelper.getCachedTask(task.id);
+    if (existingTask == null) {
+      throw const TaskException('Task not found.');
+    }
+
+    if (!caller.isManager) {
+      // Members are allowed to update ONLY their own task status.
+      if (existingTask.assignedTo != caller.id) {
+        throw const TaskException('Permission Denied: You are not assigned to this task.');
+      }
+      
+      // Check if anything other than status was changed
+      if (task.title != existingTask.title ||
+          task.description != existingTask.description ||
+          task.priority != existingTask.priority ||
+          task.assignedTo != existingTask.assignedTo ||
+          task.dueDate != existingTask.dueDate ||
+          task.projectId != existingTask.projectId) {
+        throw const TaskException('Permission Denied: Members can only update task status.');
+      }
+    }
+
     if (isOnline) {
       try {
         final response = await _dio.put(

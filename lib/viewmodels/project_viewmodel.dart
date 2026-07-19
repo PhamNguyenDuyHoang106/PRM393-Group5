@@ -4,6 +4,8 @@ import '../models/project.dart';
 import '../repositories/project_repository.dart';
 import '../services/connectivity_service.dart';
 
+import '../providers/providers.dart';
+
 class ProjectState {
   ProjectState({
     List<Project> projects = const [],
@@ -43,11 +45,12 @@ class ProjectState {
 }
 
 class ProjectViewModel extends StateNotifier<ProjectState> {
-  ProjectViewModel(this._repository, this._connectivityService)
+  ProjectViewModel(this._repository, this._connectivityService, this._ref)
     : super(ProjectState());
 
   final ProjectRepository _repository;
   final ConnectivityService _connectivityService;
+  final Ref _ref;
 
   Future<void> loadProjects() async {
     state = state.copyWith(isLoadingProjects: true, clearError: true);
@@ -131,12 +134,19 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
       return false;
     }
 
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return false;
+    }
+
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final details = await _repository.addMember(
         projectId: projectId,
         email: normalizedEmail,
         isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
       );
       state = state.copyWith(details: details, isSubmitting: false);
       return true;
@@ -153,12 +163,19 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
     required String projectId,
     required String userId,
   }) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return false;
+    }
+
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final details = await _repository.removeMember(
         projectId: projectId,
         userId: userId,
         isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
       );
       state = state.copyWith(details: details, isSubmitting: false);
       return true;

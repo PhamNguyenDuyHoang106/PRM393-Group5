@@ -60,13 +60,6 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.projectId == null ? 'My Tasks' : 'Project Tasks'),
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.person_outline_rounded),
-            onPressed: () => context.push('/profile'),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(112),
           child: Padding(

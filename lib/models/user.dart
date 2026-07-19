@@ -1,8 +1,13 @@
+class UserRole {
+  static const String manager = 'manager';
+  static const String member = 'member';
+}
+
 class User {
   final String id;
   final String name;
   final String email;
-  final String role; // 'Manager' or 'Member'
+  final String role; // 'manager' or 'member'
   final DateTime createdAt;
 
   User({
@@ -49,6 +54,6 @@ class User {
     );
   }
 
-  bool get isManager => role == 'Manager';
-  bool get isMember => role == 'Member';
+  bool get isManager => role.toLowerCase() == UserRole.manager;
+  bool get isMember => role.toLowerCase() == UserRole.member;
 }

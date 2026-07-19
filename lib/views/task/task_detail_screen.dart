@@ -35,20 +35,24 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final task = state.selectedTask?.id == widget.taskId
         ? state.selectedTask
         : null;
+    final currentUser = ref.watch(authViewModelProvider).user;
+    final isManager = currentUser?.isManager == true;
+    final isAssigned = task != null && task.assignedTo == currentUser?.id;
+    final canEdit = isManager || isAssigned;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task Detail'),
         actions: [
-          if (task != null)
+          if (task != null && canEdit)
             IconButton(
-              tooltip: 'Edit task',
-              icon: const Icon(Icons.edit_outlined),
+              tooltip: isManager ? 'Edit task' : 'Update status',
+              icon: Icon(isManager ? Icons.edit_outlined : Icons.assignment_outlined),
               onPressed: () => _openEditor(task),
             ),
         ],
       ),
-      body: _buildBody(state, task),
+      body: _buildBody(state, task, canEdit: canEdit, isManager: isManager),
     );
   }
 
@@ -57,7 +61,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     if (updated == true) await _loadTask();
   }
 
-  Widget _buildBody(TaskState state, Task? task) {
+  Widget _buildBody(TaskState state, Task? task, {required bool canEdit, required bool isManager}) {
     if (state.isLoadingDetails && task == null) {
       return const LoadingWidget(message: 'Loading task details...');
     }
@@ -157,12 +161,14 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               ),
             ),
           ),
-          const SizedBox(height: AppConstants.paddingLg),
-          FilledButton.icon(
-            onPressed: () => _openEditor(task),
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit Task'),
-          ),
+          if (canEdit) ...[
+            const SizedBox(height: AppConstants.paddingLg),
+            FilledButton.icon(
+              onPressed: () => _openEditor(task),
+              icon: Icon(isManager ? Icons.edit_outlined : Icons.assignment_outlined),
+              label: Text(isManager ? 'Edit Task' : 'Update Status'),
+            ),
+          ],
         ],
       ),
     );

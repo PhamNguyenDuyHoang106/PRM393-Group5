@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/database/db_helper.dart';
 import '../core/network/dio_client.dart';
+import '../core/security/permission_service.dart';
 import '../models/pending_action.dart';
 import '../models/project.dart';
 
@@ -68,6 +69,9 @@ class ProjectRepository {
     required String ownerId,
     required bool isOnline,
   }) async {
+    final caller = await _dbHelper.getCachedUser(ownerId);
+    PermissionService.requireManager(caller, action: 'create projects');
+
     if (isOnline) {
       try {
         final response = await _dio.post(
@@ -103,7 +107,11 @@ class ProjectRepository {
     required String projectId,
     required String email,
     required bool isOnline,
+    required String currentUserId,
   }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'add members');
+
     final normalizedEmail = email.trim().toLowerCase();
 
     if (isOnline) {
@@ -136,7 +144,11 @@ class ProjectRepository {
     required String projectId,
     required String userId,
     required bool isOnline,
+    required String currentUserId,
   }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'remove members');
+
     final details = await _getCachedProjectDetails(projectId);
     if (details.project.ownerId == userId) {
       throw const ProjectException('The project owner cannot be removed.');

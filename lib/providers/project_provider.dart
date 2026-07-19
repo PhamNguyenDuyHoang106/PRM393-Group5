@@ -14,5 +14,5 @@ final projectViewModelProvider =
       ref.watch(syncServiceProvider);
       final repository = ref.watch(projectRepositoryProvider);
       final connectivity = ref.watch(connectivityServiceProvider);
-      return ProjectViewModel(repository, connectivity);
+      return ProjectViewModel(repository, connectivity, ref);
     });

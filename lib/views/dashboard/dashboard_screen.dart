@@ -11,8 +11,8 @@ class DashboardScreen extends StatelessWidget {
         title: const Text('Smart Task Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.push('/settings'),
+            icon: const Icon(Icons.notifications_none_outlined),
+            onPressed: () => context.push('/notifications'),
           ),
         ],
       ),

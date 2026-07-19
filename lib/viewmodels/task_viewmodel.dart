@@ -4,6 +4,8 @@ import '../models/task.dart';
 import '../repositories/task_repository.dart';
 import '../services/connectivity_service.dart';
 
+import '../providers/providers.dart';
+
 class TaskState {
   TaskState({
     List<Task> tasks = const [],
@@ -68,11 +70,12 @@ class TaskState {
 }
 
 class TaskViewModel extends StateNotifier<TaskState> {
-  TaskViewModel(this._repository, this._connectivityService)
+  TaskViewModel(this._repository, this._connectivityService, this._ref)
     : super(TaskState());
 
   final TaskRepository _repository;
   final ConnectivityService _connectivityService;
+  final Ref _ref;
 
   Future<void> loadTasks({String? projectId}) async {
     state = state.copyWith(isLoadingTasks: true, clearError: true);
@@ -130,6 +133,12 @@ class TaskViewModel extends StateNotifier<TaskState> {
     String? assignedTo,
     DateTime? dueDate,
   }) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return null;
+    }
+
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final task = await _repository.createTask(
@@ -140,6 +149,7 @@ class TaskViewModel extends StateNotifier<TaskState> {
         assignedTo: assignedTo,
         dueDate: dueDate,
         isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
       );
       state = state.copyWith(
         tasks: _upsert(state.tasks, task),
@@ -157,11 +167,18 @@ class TaskViewModel extends StateNotifier<TaskState> {
   }
 
   Future<Task?> updateTask(Task task) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return null;
+    }
+
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
       final updated = await _repository.updateTask(
-        task,
-        _connectivityService.isOnline,
+        task: task,
+        isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
       );
       state = state.copyWith(
         tasks: _upsert(state.tasks, updated),

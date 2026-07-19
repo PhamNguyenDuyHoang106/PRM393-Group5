@@ -14,5 +14,5 @@ final taskViewModelProvider = StateNotifierProvider<TaskViewModel, TaskState>((
   ref.watch(syncServiceProvider);
   final repository = ref.watch(taskRepositoryProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
-  return TaskViewModel(repository, connectivity);
+  return TaskViewModel(repository, connectivity, ref);
 });

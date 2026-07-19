@@ -20,6 +20,27 @@ class AuthRepository {
     return null;
   }
 
+  Future<User> _resolveAndCacheProfile(String uid, String email, String defaultName) async {
+    var profile = await _dbHelper.getCachedUser(uid);
+    if (profile == null) {
+      final profileByEmail = await _dbHelper.getUserByEmail(email);
+      if (profileByEmail != null) {
+        await _dbHelper.updateUserId(oldId: profileByEmail.id, newId: uid);
+        profile = profileByEmail.copyWith(id: uid);
+      } else {
+        profile = User(
+          id: uid,
+          name: defaultName,
+          email: email,
+          role: UserRole.member,
+          createdAt: DateTime.now(),
+        );
+      }
+    }
+    await _dbHelper.cacheUser(profile);
+    return profile;
+  }
+
   Future<User?> login(String email, String password) async {
     try {
       final fbAuth = _firebaseAuth;
@@ -31,18 +52,15 @@ class AuthRepository {
         );
         final fbUser = userCredential.user;
         if (fbUser != null) {
-          final user = User(
-            id: fbUser.uid,
-            name: fbUser.displayName ?? email.split('@').first,
-            email: email,
-            role: email.toLowerCase().contains('manager') ? 'Manager' : 'Member',
-            createdAt: DateTime.now(),
+          final user = await _resolveAndCacheProfile(
+            fbUser.uid,
+            email,
+            fbUser.displayName ?? email.split('@').first,
           );
           
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(AppConstants.authTokenKey, fbUser.uid);
           await prefs.setString('logged_user_id', user.id);
-          await _dbHelper.cacheUser(user);
           return user;
         }
       }
@@ -55,31 +73,34 @@ class AuthRepository {
         });
         
         final token = response.data['token'] as String? ?? 'mock_token';
-        final user = User.fromJson(response.data['user'] as Map<String, dynamic>);
+        final jsonUser = response.data['user'] as Map<String, dynamic>;
+        
+        // Resolve profile locally using SQLite profile data
+        final resolvedUser = await _resolveAndCacheProfile(
+          jsonUser['id'] as String,
+          jsonUser['email'] as String,
+          jsonUser['name'] as String,
+        );
         
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(AppConstants.authTokenKey, token);
-        await prefs.setString('logged_user_id', user.id);
-        await _dbHelper.cacheUser(user);
-        return user;
+        await prefs.setString('logged_user_id', resolvedUser.id);
+        return resolvedUser;
       } catch (apiError) {
         // If API fails (e.g. offline), let's fallback to Mocking for MVP
         // Mock Success Response for MVP if credentials are valid format
         if (email.contains('@') && password.length >= 6) {
           final mockId = 'usr_${email.hashCode.abs().toString().substring(0, 4)}';
-          final user = User(
-            id: mockId,
-            name: email.split('@').first.toUpperCase(),
-            email: email,
-            role: email.toLowerCase().contains('manager') ? 'Manager' : 'Member',
-            createdAt: DateTime.now(),
+          final resolvedUser = await _resolveAndCacheProfile(
+            mockId,
+            email,
+            email.split('@').first.toUpperCase(),
           );
 
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(AppConstants.authTokenKey, 'mock_jwt_token_here');
-          await prefs.setString('logged_user_id', user.id);
-          await _dbHelper.cacheUser(user);
-          return user;
+          await prefs.setString('logged_user_id', resolvedUser.id);
+          return resolvedUser;
         } else {
           throw Exception('Invalid credentials format');
         }
@@ -114,7 +135,7 @@ class AuthRepository {
             id: fbUser.uid,
             name: name,
             email: email,
-            role: email.toLowerCase().contains('manager') ? 'Manager' : 'Member',
+            role: UserRole.member, // STRICTLY member
             createdAt: DateTime.now(),
           );
           
@@ -132,11 +153,13 @@ class AuthRepository {
           'name': name,
           'email': email,
           'password': password,
-          'role': email.toLowerCase().contains('manager') ? 'Manager' : 'Member',
+          'role': UserRole.member, // STRICTLY member
         });
         
         final token = response.data['token'] as String? ?? 'mock_token';
-        final user = User.fromJson(response.data['user'] as Map<String, dynamic>);
+        final user = User.fromJson(response.data['user'] as Map<String, dynamic>).copyWith(
+          role: UserRole.member, // Force role to member
+        );
         
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(AppConstants.authTokenKey, token);
@@ -150,9 +173,8 @@ class AuthRepository {
           id: mockId,
           name: name,
           email: email,
-          role: email.toLowerCase().contains('manager') ? 'Manager' : 'Member',
+          role: UserRole.member, // STRICTLY member
           createdAt: DateTime.now(),
-          // Default role is Member, unless email contains manager
         );
 
         final prefs = await SharedPreferences.getInstance();

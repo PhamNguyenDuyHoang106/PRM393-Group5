@@ -131,6 +131,53 @@ class DbHelper {
     return User.fromJson(maps.first);
   }
 
+  Future<User?> getUserByEmail(String email) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    if (maps.isEmpty) return null;
+    return User.fromJson(maps.first);
+  }
+
+  Future<void> updateUserId({required String oldId, required String newId}) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        'users',
+        {'id': newId},
+        where: 'id = ?',
+        whereArgs: [oldId],
+      );
+      await txn.update(
+        'projects',
+        {'owner_id': newId},
+        where: 'owner_id = ?',
+        whereArgs: [oldId],
+      );
+      await txn.update(
+        'project_members',
+        {'user_id': newId},
+        where: 'user_id = ?',
+        whereArgs: [oldId],
+      );
+      await txn.update(
+        'tasks',
+        {'assigned_to': newId},
+        where: 'assigned_to = ?',
+        whereArgs: [oldId],
+      );
+      await txn.update(
+        'notifications',
+        {'user_id': newId},
+        where: 'user_id = ?',
+        whereArgs: [oldId],
+      );
+    });
+  }
+
   // Projects Cache
   Future<void> cacheProjects(List<Project> projects) async {
     final db = await database;

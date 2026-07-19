@@ -39,13 +39,6 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Projects'),
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.person_outline_rounded),
-            onPressed: () => context.push('/profile'),
-          ),
-        ],
       ),
       body: _buildBody(projectState),
       floatingActionButton: canCreateProject
