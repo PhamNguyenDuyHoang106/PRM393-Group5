@@ -12,6 +12,12 @@ class MemberHomeScreen extends ConsumerWidget {
     final dashboardState = ref.watch(dashboardViewModelProvider);
     final stats = dashboardState.statistics;
 
+    // Watch settings and notifications for dynamic badge
+    final settingsState = ref.watch(settingsViewModelProvider);
+    final notificationState = ref.watch(notificationViewModelProvider);
+    final isPushEnabled = settingsState.isPushNotificationEnabled;
+    final unreadCount = notificationState.unreadCount;
+
     final projectCount = stats?.totalProjects ?? 0;
     final assignedTasksCount = stats?.totalTasks ?? 0;
     final completedTasksCount = stats?.completedTasks ?? 0;
@@ -29,7 +35,13 @@ class MemberHomeScreen extends ConsumerWidget {
         title: const Text('Smart Task Home'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none_outlined),
+            icon: isPushEnabled && unreadCount > 0
+                ? Badge(
+                    label: Text(unreadCount.toString()),
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.notifications_none_outlined),
+                  )
+                : const Icon(Icons.notifications_none_outlined),
             onPressed: () => context.push('/notifications'),
           ),
         ],
