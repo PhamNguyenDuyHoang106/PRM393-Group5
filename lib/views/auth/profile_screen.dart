@@ -181,17 +181,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
-        actions: [
-          // Day/Night mode switch (shortened by half, no text labels)
-          ThemeToggleSwitch(
-            isDark: isDark,
-            onChanged: (val) {
-              ref.read(themeModeProvider.notifier).state =
-                  val ? ThemeMode.dark : ThemeMode.light;
-            },
-          ),
-          const SizedBox(width: AppConstants.paddingMd),
-        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -540,70 +529,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── ThemeToggleSwitch (Shortened by half, only circular slider, no text) ───
-class ThemeToggleSwitch extends StatelessWidget {
-  final bool isDark;
-  final ValueChanged<bool> onChanged;
-
-  const ThemeToggleSwitch({
-    super.key,
-    required this.isDark,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onChanged(!isDark),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: 72, // Reduced width to about half of original 145
-        height: 36,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: isDark ? Colors.black : const Color(0xFFE5E7EB),
-          border: Border.all(
-            color: isDark ? Colors.grey[850]! : Colors.grey[300]!,
-            width: 1.5,
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Sliding Circular Icon Handle
-            AnimatedAlign(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              alignment: isDark ? Alignment.centerLeft : Alignment.centerRight,
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 2,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  isDark ? Icons.nightlight_round : Icons.wb_sunny,
-                  color: isDark ? Colors.black87 : Colors.orangeAccent,
-                  size: 15,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
