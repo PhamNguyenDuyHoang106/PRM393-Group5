@@ -190,7 +190,9 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
             ),
           const SizedBox(height: AppConstants.paddingLg),
           FilledButton.icon(
-            onPressed: () => context.go('/tasks'),
+            onPressed: () => context.go(
+              '/tasks?projectId=${Uri.encodeComponent(project.id)}',
+            ),
             icon: const Icon(Icons.task_alt_rounded),
             label: const Text('View Project Tasks'),
           ),

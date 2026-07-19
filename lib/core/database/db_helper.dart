@@ -261,8 +261,21 @@ class DbHelper {
       'tasks',
       where: projectId != null ? 'project_id = ?' : null,
       whereArgs: projectId != null ? [projectId] : null,
+      orderBy: 'created_at DESC',
     );
     return maps.map((m) => Task.fromJson(m)).toList();
+  }
+
+  Future<Task?> getCachedTask(String taskId) async {
+    final db = await database;
+    final maps = await db.query(
+      'tasks',
+      where: 'id = ?',
+      whereArgs: [taskId],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return Task.fromJson(maps.first);
   }
 
   Future<void> deleteCachedTask(String taskId) async {
