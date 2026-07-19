@@ -21,8 +21,12 @@ import '../../views/dashboard/statistics_screen.dart';
 import '../../views/dashboard/notification_center_screen.dart';
 import '../../views/dashboard/settings_screen.dart';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
+final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'shell',
+);
 
 class AppRouter {
   AppRouter._();
@@ -33,9 +37,10 @@ class AppRouter {
     redirect: (context, state) async {
       final prefs = await SharedPreferences.getInstance();
       final loggedIn = prefs.getString(AppConstants.authTokenKey) != null;
-      final isAuthRoute = state.uri.toString() == '/login' ||
-                          state.uri.toString() == '/register' ||
-                          state.uri.toString() == '/forgot-password';
+      final isAuthRoute =
+          state.uri.toString() == '/login' ||
+          state.uri.toString() == '/register' ||
+          state.uri.toString() == '/forgot-password';
 
       if (!loggedIn && !isAuthRoute) {
         return '/login';
@@ -47,10 +52,7 @@ class AppRouter {
     },
     routes: [
       // Authentication Routes
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
@@ -75,7 +77,9 @@ class AppRouter {
           ),
           GoRoute(
             path: '/tasks',
-            builder: (context, state) => const TaskListScreen(),
+            builder: (context, state) => TaskListScreen(
+              projectId: state.uri.queryParameters['projectId'],
+            ),
           ),
           GoRoute(
             path: '/notifications',

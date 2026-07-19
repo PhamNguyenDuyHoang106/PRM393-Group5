@@ -1,50 +1,100 @@
 import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
+
 import '../core/database/db_helper.dart';
+import '../core/network/dio_client.dart';
 import '../models/task.dart';
 import '../models/pending_action.dart';
 
 class TaskRepository {
-  final DbHelper _dbHelper = DbHelper.instance;
+  TaskRepository({DbHelper? dbHelper, Dio? dio, Uuid? uuid})
+    : _dbHelper = dbHelper ?? DbHelper.instance,
+      _dio = dio ?? DioClient.instance.dio,
+      _uuid = uuid ?? const Uuid();
 
-  Future<List<Task>> getTasks(String projectId) async {
-    try {
-      // Try calling API first
-      // final response = await _dioClient.dio.get('/tasks', queryParameters: {'project_id': projectId});
-      // final List data = response.data;
-      // final List<Task> tasks = data.map((json) => Task.fromJson(json)).toList();
+  final DbHelper _dbHelper;
+  final Dio _dio;
+  final Uuid _uuid;
 
-      // Mock Delay
-      await Future.delayed(const Duration(milliseconds: 500));
-      final tasks = [
-        Task(
-          id: 'task_550',
-          projectId: projectId,
-          title: 'Integrate Dio Client',
-          description: 'Configure HTTP interceptors and headers.',
-          priority: 'HIGH',
-          status: 'TODO',
-          assignedTo: 'usr_7719',
-          createdAt: DateTime.now(),
-        ),
-      ];
-
-      // Update cache
-      await _dbHelper.cacheTasks(tasks);
-      return tasks;
-    } catch (_) {
-      // Offline fallback: load from SQLite cache
-      return await _dbHelper.getCachedTasks(projectId: projectId);
+  Future<List<Task>> getTasks({
+    String? projectId,
+    String? search,
+    String? status,
+    required bool isOnline,
+  }) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get(
+          '/tasks',
+          queryParameters: {
+            if (projectId != null && projectId.isNotEmpty)
+              'project_id': projectId,
+            if (search != null && search.trim().isNotEmpty)
+              'search': search.trim(),
+            if (status != null && status.isNotEmpty) 'status': status,
+          },
+        );
+        if (response.data is! List) {
+          throw const FormatException('Invalid tasks response.');
+        }
+        final tasks = (response.data as List)
+            .whereType<Map>()
+            .map((json) => Task.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+        await _dbHelper.cacheTasks(tasks);
+        return tasks;
+      } catch (_) {
+        // Fall back to SQLite when the API is unavailable.
+      }
     }
+
+    var tasks = await _dbHelper.getCachedTasks(projectId: projectId);
+    if (tasks.isEmpty) {
+      tasks = _buildDemoTasks(projectId ?? 'proj_01');
+      await _dbHelper.cacheTasks(tasks);
+    }
+    return _filterTasks(tasks, search: search, status: status);
   }
 
-  Future<Task> createTask(String projectId, String title, String description, String priority, String? assignedTo, DateTime? dueDate, bool isOnline) async {
+  Future<Task> getTask(String taskId, {required bool isOnline}) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get('/tasks/$taskId');
+        if (response.data is! Map) {
+          throw const FormatException('Invalid task detail response.');
+        }
+        final task = Task.fromJson(
+          Map<String, dynamic>.from(response.data as Map),
+        );
+        await _dbHelper.cacheTasks([task]);
+        return task;
+      } catch (_) {
+        // Fall back to SQLite when the API is unavailable.
+      }
+    }
+
+    final task = await _dbHelper.getCachedTask(taskId);
+    if (task == null) throw const TaskException('Task not found.');
+    return task;
+  }
+
+  Future<Task> createTask({
+    required String projectId,
+    required String title,
+    required String description,
+    required String priority,
+    String? assignedTo,
+    DateTime? dueDate,
+    required bool isOnline,
+  }) async {
     final newTask = Task(
-      id: const Uuid().v4(),
+      id: _uuid.v4(),
       projectId: projectId,
-      title: title,
-      description: description,
-      priority: priority,
+      title: title.trim(),
+      description: description.trim(),
+      priority: priority.toUpperCase(),
       status: 'TODO',
       assignedTo: assignedTo,
       dueDate: dueDate,
@@ -53,50 +103,138 @@ class TaskRepository {
 
     if (isOnline) {
       try {
-        // Post to API
-        // await _dioClient.dio.post('/tasks', data: newTask.toJson());
-        await _dbHelper.cacheTasks([newTask]);
-        return newTask;
+        final response = await _dio.post(
+          '/tasks',
+          data: _createPayload(newTask),
+        );
+        final data = response.data;
+        if (data is! Map) {
+          throw const FormatException('Invalid create task response.');
+        }
+        final created = Task.fromJson(Map<String, dynamic>.from(data));
+        await _dbHelper.cacheTasks([created]);
+        return created;
       } catch (_) {
-        // Fallback to offline on failure
+        // Save locally and queue below.
       }
     }
 
-    // Offline caching & sync queue enqueue
     await _dbHelper.cacheTasks([newTask]);
-    final pendingAction = PendingAction(
-      id: const Uuid().v4(),
-      actionType: 'CREATE_TASK',
-      payload: jsonEncode(newTask.toJson()),
-      createdAt: DateTime.now(),
-    );
-    await _dbHelper.enqueueAction(pendingAction);
-
+    await _enqueueAction('CREATE_TASK', newTask.toJson());
     return newTask;
   }
 
   Future<Task> updateTask(Task task, bool isOnline) async {
     if (isOnline) {
       try {
-        // Put updates to API
-        // await _dioClient.dio.put('/tasks/${task.id}', data: task.toJson());
-        await _dbHelper.cacheTasks([task]);
-        return task;
+        final response = await _dio.put(
+          '/tasks/${task.id}',
+          data: _updatePayload(task),
+        );
+        final data = response.data;
+        if (data is! Map) {
+          throw const FormatException('Invalid update task response.');
+        }
+        final updated = Task.fromJson(Map<String, dynamic>.from(data));
+        await _dbHelper.cacheTasks([updated]);
+        return updated;
       } catch (_) {
-        // Fallback to offline on failure
+        // Save locally and queue below.
       }
     }
 
-    // Offline caching & sync queue enqueue
     await _dbHelper.cacheTasks([task]);
-    final pendingAction = PendingAction(
-      id: const Uuid().v4(),
-      actionType: 'UPDATE_TASK',
-      payload: jsonEncode(task.toJson()),
-      createdAt: DateTime.now(),
-    );
-    await _dbHelper.enqueueAction(pendingAction);
-
+    await _enqueueAction('UPDATE_TASK', task.toJson());
     return task;
   }
+
+  List<Task> _filterTasks(List<Task> tasks, {String? search, String? status}) {
+    final query = search?.trim().toLowerCase() ?? '';
+    return tasks.where((task) {
+      final matchesSearch =
+          query.isEmpty ||
+          task.title.toLowerCase().contains(query) ||
+          task.description.toLowerCase().contains(query);
+      final matchesStatus =
+          status == null || status.isEmpty || task.status == status;
+      return matchesSearch && matchesStatus;
+    }).toList();
+  }
+
+  Map<String, dynamic> _createPayload(Task task) => {
+    'project_id': task.projectId,
+    'title': task.title,
+    'description': task.description,
+    'priority': task.priority,
+    'assigned_to': task.assignedTo,
+    'due_date': task.dueDate?.toUtc().toIso8601String(),
+  };
+
+  Map<String, dynamic> _updatePayload(Task task) => {
+    'title': task.title,
+    'description': task.description,
+    'priority': task.priority,
+    'status': task.status,
+    'assigned_to': task.assignedTo,
+    'due_date': task.dueDate?.toUtc().toIso8601String(),
+  };
+
+  Future<void> _enqueueAction(String actionType, Map<String, dynamic> payload) {
+    return _dbHelper.enqueueAction(
+      PendingAction(
+        id: _uuid.v4(),
+        actionType: actionType,
+        payload: jsonEncode(payload),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  List<Task> _buildDemoTasks(String projectId) {
+    final now = DateTime.now();
+    return [
+      Task(
+        id: 'task_550',
+        projectId: projectId,
+        title: 'Design Database Schema',
+        description: 'Define SQLite tables and columns.',
+        priority: 'HIGH',
+        status: 'TODO',
+        assignedTo: 'usr_8231',
+        dueDate: now.add(const Duration(days: 3)),
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      Task(
+        id: 'task_551',
+        projectId: projectId,
+        title: 'Integrate Dio Client',
+        description: 'Configure HTTP interceptors and authorization headers.',
+        priority: 'MEDIUM',
+        status: 'IN_PROGRESS',
+        assignedTo: 'usr_7719',
+        dueDate: now.add(const Duration(days: 7)),
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+      Task(
+        id: 'task_552',
+        projectId: projectId,
+        title: 'Create UI Wireframes',
+        description: 'Prepare the MVP screen layout.',
+        priority: 'LOW',
+        status: 'DONE',
+        assignedTo: 'usr_8231',
+        dueDate: now.subtract(const Duration(days: 1)),
+        createdAt: now.subtract(const Duration(days: 5)),
+      ),
+    ];
+  }
+}
+
+class TaskException implements Exception {
+  const TaskException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

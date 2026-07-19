@@ -31,6 +31,8 @@ class Task {
     String? assignedTo,
     DateTime? dueDate,
     DateTime? createdAt,
+    bool clearAssignedTo = false,
+    bool clearDueDate = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -39,8 +41,8 @@ class Task {
       description: description ?? this.description,
       priority: priority ?? this.priority,
       status: status ?? this.status,
-      assignedTo: assignedTo ?? this.assignedTo,
-      dueDate: dueDate ?? this.dueDate,
+      assignedTo: clearAssignedTo ? null : (assignedTo ?? this.assignedTo),
+      dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -61,15 +63,20 @@ class Task {
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
-      id: json['id'] as String,
-      projectId: json['project_id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String? ?? '',
-      priority: json['priority'] as String? ?? 'MEDIUM',
-      status: json['status'] as String? ?? 'TODO',
-      assignedTo: json['assigned_to'] as String?,
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date'] as String) : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: json['id'].toString(),
+      projectId: json['project_id'].toString(),
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      priority: json['priority']?.toString().toUpperCase() ?? 'MEDIUM',
+      status: json['status']?.toString().toUpperCase() ?? 'TODO',
+      assignedTo: json['assigned_to']?.toString(),
+      dueDate: _parseDate(json['due_date']),
+      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null || value.toString().isEmpty) return null;
+    return DateTime.tryParse(value.toString());
   }
 }
