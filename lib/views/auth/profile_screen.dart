@@ -5,7 +5,7 @@ import '../../app.dart';
 import '../../core/constants/app_constants.dart';
 import '../../providers/providers.dart';
 
-final pushNotificationsProvider = StateProvider<bool>((ref) => true);
+
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -136,55 +136,26 @@ class ProfileScreen extends ConsumerWidget {
                 elevation: 2,
                 child: Column(
                   children: [
-                    SwitchListTile(
-                      secondary: Icon(
-                        Icons.dark_mode_outlined,
+                    ListTile(
+                      leading: Icon(
+                        Icons.settings_outlined,
                         color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
                       ),
                       title: Text(
-                        'Dark Mode',
+                        'Advanced Settings',
                         style: TextStyle(
                           color: isDark ? AppConstants.textDark : AppConstants.textLight,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       subtitle: Text(
-                        'Toggle light or dark interface theme',
+                        'Offline cache, sound and database configurations',
                         style: TextStyle(
                           color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
                           fontSize: 12,
                         ),
                       ),
-                      value: isDark,
-                      onChanged: (val) {
-                        ref.read(themeModeProvider.notifier).state =
-                            val ? ThemeMode.dark : ThemeMode.light;
-                      },
-                    ),
-                    const Divider(height: 1),
-                    SwitchListTile(
-                      secondary: Icon(
-                        Icons.notifications_outlined,
-                        color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
-                      ),
-                      title: Text(
-                        'Push Notifications',
-                        style: TextStyle(
-                          color: isDark ? AppConstants.textDark : AppConstants.textLight,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Receive push alerts for deadline limits',
-                        style: TextStyle(
-                          color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
-                          fontSize: 12,
-                        ),
-                      ),
-                      value: ref.watch(pushNotificationsProvider),
-                      onChanged: (val) {
-                        ref.read(pushNotificationsProvider.notifier).state = val;
-                      },
+                      onTap: () => context.push('/settings'),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -207,28 +178,6 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                       onTap: () {},
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: Icon(
-                        Icons.settings_outlined,
-                        color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
-                      ),
-                      title: Text(
-                        'Advanced Settings',
-                        style: TextStyle(
-                          color: isDark ? AppConstants.textDark : AppConstants.textLight,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Offline cache, sound and database configurations',
-                        style: TextStyle(
-                          color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
-                          fontSize: 12,
-                        ),
-                      ),
-                      onTap: () => context.push('/settings'),
                     ),
                   ],
                 ),
