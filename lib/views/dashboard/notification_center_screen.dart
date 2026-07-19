@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/dashboard_provider.dart';
+import '../../providers/providers.dart';
 import '../../viewmodels/notification_viewmodel.dart';
 import '../../models/notification.dart';
 
@@ -16,7 +16,8 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(notificationViewModelProvider.notifier).loadNotifications();
+      final user = ref.read(authViewModelProvider).user;
+      ref.read(notificationViewModelProvider.notifier).loadNotifications(userId: user?.id);
     });
   }
 
@@ -100,7 +101,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     final list = state.filteredNotifications;
 
     return RefreshIndicator(
-      onRefresh: () => notifier.refresh(),
+      onRefresh: () {
+        final user = ref.read(authViewModelProvider).user;
+        return notifier.refresh(userId: user?.id);
+      },
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),

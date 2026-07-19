@@ -1,31 +1,42 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/database/db_helper.dart';
 import '../models/notification.dart';
 
 class NotificationRepository {
   final DbHelper _dbHelper = DbHelper.instance;
 
-  Future<List<AppNotification>> getNotifications() async {
+  Future<List<AppNotification>> getNotifications({String? userId}) async {
     try {
-      // final response = await _dioClient.dio.get('/notifications');
-      // final List data = response.data;
-      // final List<AppNotification> notifs = data.map((json) => AppNotification.fromJson(json)).toList();
+      final cached = await _dbHelper.getCachedNotifications(userId: userId);
+      
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeeded = prefs.getBool('notifs_seeded_${userId ?? "default"}') ?? false;
+
+      if (hasSeeded) {
+        return cached;
+      }
 
       await Future.delayed(const Duration(milliseconds: 500));
-      final notifs = [
-        AppNotification(
-          id: 'notif_001',
-          userId: 'usr_7719',
-          title: 'New Task Assigned',
-          message: 'You have been assigned to Integrate Dio Client by Hoang Manager.',
-          readStatus: 0,
-          createdAt: DateTime.now().subtract(const Duration(minutes: 10)),
-        ),
-      ];
+      if (userId != null) {
+        final seed = [
+          AppNotification(
+            id: 'notif_${userId}_001',
+            userId: userId,
+            title: 'Welcome to Smart Task!',
+            message: 'Hello! You have registered successfully. Get started by viewing your projects.',
+            readStatus: 0,
+            createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          ),
+        ];
 
-      await _dbHelper.cacheNotifications(notifs);
-      return notifs;
+        await _dbHelper.cacheNotifications(seed);
+        await prefs.setBool('notifs_seeded_$userId', true);
+        return seed;
+      }
+      
+      return cached;
     } catch (_) {
-      return await _dbHelper.getCachedNotifications();
+      return await _dbHelper.getCachedNotifications(userId: userId);
     }
   }
 

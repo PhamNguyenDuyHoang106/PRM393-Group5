@@ -517,9 +517,11 @@ class DbHelper {
     await batch.commit(noResult: true);
   }
 
-  Future<List<AppNotification>> getCachedNotifications() async {
+  Future<List<AppNotification>> getCachedNotifications({String? userId}) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('notifications');
+    final List<Map<String, dynamic>> maps = userId != null
+        ? await db.query('notifications', where: 'user_id = ?', whereArgs: [userId])
+        : await db.query('notifications');
     return maps.map((m) => AppNotification.fromJson(m)).toList();
   }
 

@@ -59,9 +59,7 @@ class DashboardState {
 class DashboardViewModel extends StateNotifier<DashboardState> {
   final StatisticsRepository _statisticsRepository;
 
-  DashboardViewModel(this._statisticsRepository) : super(DashboardState()) {
-    loadStatistics();
-  }
+  DashboardViewModel(this._statisticsRepository) : super(DashboardState());
 
   /// Tải dữ liệu thống kê lần đầu hoặc khi navigate vào màn.
   Future<void> loadStatistics({String? dateRange, String? userId, String? role}) async {
@@ -116,5 +114,10 @@ class DashboardViewModel extends StateNotifier<DashboardState> {
   /// Xoá thông báo lỗi.
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// Reset complete dashboard state.
+  void resetStatistics() {
+    state = DashboardState();
   }
 }

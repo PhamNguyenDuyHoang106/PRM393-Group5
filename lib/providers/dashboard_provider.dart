@@ -20,14 +20,28 @@ final statisticsRepositoryProvider = Provider<StatisticsRepository>((ref) {
 final dashboardViewModelProvider =
     StateNotifierProvider<DashboardViewModel, DashboardState>((ref) {
   final repository = ref.watch(statisticsRepositoryProvider);
-  return DashboardViewModel(repository);
+  final user = ref.watch(authViewModelProvider).user;
+  
+  final viewModel = DashboardViewModel(repository);
+  if (user != null) {
+    viewModel.loadStatistics(userId: user.id, role: user.role);
+  } else {
+    viewModel.resetStatistics();
+  }
+  return viewModel;
 });
 
 /// Provider cho NotificationViewModel
 final notificationViewModelProvider =
     StateNotifierProvider<NotificationViewModel, NotificationState>((ref) {
   final repository = ref.watch(notificationRepositoryProvider);
-  return NotificationViewModel(repository);
+  final user = ref.watch(authViewModelProvider).user;
+  
+  final viewModel = NotificationViewModel(repository);
+  if (user != null) {
+    viewModel.loadNotifications(userId: user.id);
+  }
+  return viewModel;
 });
 
 /// Provider cho SettingsViewModel
