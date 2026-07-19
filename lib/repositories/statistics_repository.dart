@@ -121,7 +121,11 @@ class StatisticsRepository {
   }
 
   // ─── Legacy Method: getStatistics (for DashboardViewModel compatibility) ───
-  Future<Statistics> getStatistics({bool forceRefresh = false, bool isOnline = true}) async {
+  Future<Statistics> getStatistics({bool forceRefresh = false, bool isOnline = true, String? dateRange}) async {
+    if (dateRange != null && dateRange != 'All Time') {
+      return await _dbHelper.getLocalStatistics(dateRange: dateRange);
+    }
+
     if (!forceRefresh && _isCacheValid) {
       return _cachedStatistics!;
     }
@@ -150,7 +154,7 @@ class StatisticsRepository {
     }
 
     try {
-      final localStats = await _dbHelper.getLocalStatistics();
+      final localStats = await _dbHelper.getLocalStatistics(dateRange: dateRange);
       _cachedStatistics = localStats;
       _lastFetchTime = DateTime.now();
       return localStats;

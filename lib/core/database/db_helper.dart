@@ -367,27 +367,66 @@ class DbHelper {
   }
 
   // Calculate statistics from local tables
-  Future<Statistics> getLocalStatistics() async {
+  // Calculate statistics from local tables with date range filter
+  Future<Statistics> getLocalStatistics({String? dateRange}) async {
     final db = await database;
+    
+    String filter = "";
+    List<dynamic> filterArgs = [];
+    final now = DateTime.now();
+    final nowStr = now.toIso8601String();
+    
+    if (dateRange != null && dateRange != 'All Time') {
+      if (dateRange == 'This Week') {
+        final weekday = now.weekday;
+        final startOfWeek = now.subtract(Duration(days: weekday - 1));
+        final startStr = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day).toIso8601String();
+        final endOfWeek = startOfWeek.add(const Duration(days: 7));
+        final endStr = DateTime(endOfWeek.year, endOfWeek.month, endOfWeek.day).toIso8601String();
+        filter = " WHERE due_date >= ? AND due_date < ? ";
+        filterArgs.addAll([startStr, endStr]);
+      } else if (dateRange == 'This Month') {
+        final startStr = DateTime(now.year, now.month, 1).toIso8601String();
+        // Calculate start of next month
+        final nextMonthYear = now.month == 12 ? now.year + 1 : now.year;
+        final nextMonthVal = now.month == 12 ? 1 : now.month + 1;
+        final endStr = DateTime(nextMonthYear, nextMonthVal, 1).toIso8601String();
+        filter = " WHERE due_date >= ? AND due_date < ? ";
+        filterArgs.addAll([startStr, endStr]);
+      }
+    }
+
     final projectCountRes = await db.rawQuery(
       'SELECT COUNT(*) as count FROM projects',
     );
-    final taskCountRes = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM tasks',
-    );
-    final completedCountRes = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'",
-    );
-    final pendingCountRes = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'",
-    );
 
-    // Simple date comparison for overdue tasks
-    final nowStr = DateTime.now().toIso8601String();
-    final overdueCountRes = await db.rawQuery(
-      "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?",
-      [nowStr],
-    );
+    String taskQuery = 'SELECT COUNT(*) as count FROM tasks';
+    String completedQuery = "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'";
+    String pendingQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'";
+    String overdueQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?";
+    String statusQuery = 'SELECT status, COUNT(*) as count FROM tasks';
+    String priorityQuery = 'SELECT priority, COUNT(*) as count FROM tasks';
+
+    List<dynamic> overdueArgs = [nowStr];
+
+    if (filter.isNotEmpty) {
+      taskQuery += filter;
+      completedQuery += filter.replaceFirst(" WHERE ", " AND ");
+      pendingQuery += filter.replaceFirst(" WHERE ", " AND ");
+      overdueQuery += "${filter.replaceFirst(" WHERE ", " AND ")} AND due_date < ?";
+      statusQuery += "$filter GROUP BY status";
+      priorityQuery += "$filter GROUP BY priority";
+      
+      overdueArgs.insertAll(0, filterArgs);
+    } else {
+      statusQuery += ' GROUP BY status';
+      priorityQuery += ' GROUP BY priority';
+    }
+
+    final taskCountRes = await db.rawQuery(taskQuery, filter.isNotEmpty ? filterArgs : null);
+    final completedCountRes = await db.rawQuery(completedQuery, filter.isNotEmpty ? filterArgs : null);
+    final pendingCountRes = await db.rawQuery(pendingQuery, filter.isNotEmpty ? filterArgs : null);
+    final overdueCountRes = await db.rawQuery(overdueQuery, overdueArgs);
 
     final projectCount = Sqflite.firstIntValue(projectCountRes) ?? 0;
     final taskCount = Sqflite.firstIntValue(taskCountRes) ?? 0;
@@ -395,12 +434,8 @@ class DbHelper {
     final pendingCount = Sqflite.firstIntValue(pendingCountRes) ?? 0;
     final overdueCount = Sqflite.firstIntValue(overdueCountRes) ?? 0;
 
-    final statusRes = await db.rawQuery(
-      'SELECT status, COUNT(*) as count FROM tasks GROUP BY status',
-    );
-    final priorityRes = await db.rawQuery(
-      'SELECT priority, COUNT(*) as count FROM tasks GROUP BY priority',
-    );
+    final statusRes = await db.rawQuery(statusQuery, filter.isNotEmpty ? filterArgs : null);
+    final priorityRes = await db.rawQuery(priorityQuery, filter.isNotEmpty ? filterArgs : null);
 
     final Map<String, int> statusDist = {};
     for (var r in statusRes) {

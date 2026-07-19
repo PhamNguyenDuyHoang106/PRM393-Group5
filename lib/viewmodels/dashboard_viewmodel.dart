@@ -64,10 +64,10 @@ class DashboardViewModel extends StateNotifier<DashboardState> {
   }
 
   /// Tải dữ liệu thống kê lần đầu hoặc khi navigate vào màn.
-  Future<void> loadStatistics() async {
+  Future<void> loadStatistics({String? dateRange}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final stats = await _statisticsRepository.getStatistics();
+      final stats = await _statisticsRepository.getStatistics(dateRange: dateRange);
       state = state.copyWith(
         statistics: stats,
         isLoading: false,

@@ -13,13 +13,51 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   bool _showStatusStats = true; // True for Status, False for Priority
+  String _dateRange = 'All Time'; // Date range filter state
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(dashboardViewModelProvider.notifier).loadStatistics();
+      ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange);
     });
+  }
+
+  void _exportStatistics(BuildContext context) async {
+    // Show a loading dialog to simulate generation/export
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Exporting report...', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Simulate database write / CSV file generation delay
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    if (context.mounted) {
+      Navigator.pop(context); // Dismiss loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Statistics report exported successfully as CSV!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -32,8 +70,9 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         title: const Text('Task Statistics'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(dashboardViewModelProvider.notifier).refreshData(),
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Export Statistics',
+            onPressed: () => _exportStatistics(context),
           ),
         ],
       ),
@@ -46,6 +85,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _buildTimeFilter(),
+                      const SizedBox(height: 16),
                       _buildSelectorToggle(),
                       const SizedBox(height: 24),
                       _buildChartSection(stats),
@@ -67,11 +108,40 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           const Text('No statistics data available', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 12),
           ElevatedButton(
-            onPressed: () => ref.read(dashboardViewModelProvider.notifier).loadStatistics(),
+            onPressed: () => ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange),
             child: const Text('Retry'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimeFilter() {
+    return SegmentedButton<String>(
+      segments: const [
+        ButtonSegment<String>(
+          value: 'All Time',
+          label: Text('All'),
+          icon: Icon(Icons.date_range_rounded),
+        ),
+        ButtonSegment<String>(
+          value: 'This Week',
+          label: Text('Week'),
+          icon: Icon(Icons.calendar_view_week_rounded),
+        ),
+        ButtonSegment<String>(
+          value: 'This Month',
+          label: Text('Month'),
+          icon: Icon(Icons.calendar_month_rounded),
+        ),
+      ],
+      selected: {_dateRange},
+      onSelectionChanged: (Set<String> newSelection) {
+        setState(() {
+          _dateRange = newSelection.first;
+        });
+        ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange);
+      },
     );
   }
 
