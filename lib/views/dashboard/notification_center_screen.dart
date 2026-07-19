@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../viewmodels/notification_viewmodel.dart';
+import '../../models/notification.dart';
 
 class NotificationCenterScreen extends ConsumerStatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -124,7 +125,10 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
               );
             },
             child: ListTile(
-              onTap: () => notifier.markAsRead(notif),
+              onTap: () {
+                notifier.markAsRead(notif);
+                _showNotificationDetailsDialog(context, notif);
+              },
               leading: Icon(
                 notif.readStatus == 1 ? Icons.drafts : Icons.mark_as_unread,
                 color: notif.readStatus == 1 ? Colors.grey : Colors.blue,
@@ -151,6 +155,42 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showNotificationDetailsDialog(BuildContext context, AppNotification notif) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          notif.title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                notif.message,
+                style: const TextStyle(fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Received: ${_formatTime(notif.createdAt)}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
