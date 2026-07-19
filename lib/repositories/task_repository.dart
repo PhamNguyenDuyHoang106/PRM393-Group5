@@ -52,10 +52,21 @@ class TaskRepository {
 
     var tasks = await _dbHelper.getCachedTasks(projectId: projectId);
     if (tasks.isEmpty) {
-      tasks = _buildDemoTasks(projectId ?? 'proj_01');
-      await _dbHelper.cacheTasks(tasks);
+      await _seedDemoTasksIfNeeded();
+      tasks = await _dbHelper.getCachedTasks(projectId: projectId);
     }
     return _filterTasks(tasks, search: search, status: status);
+  }
+
+  /// Seeds demo tasks only once, and only for the offline demo project, so
+  /// real projects never share or steal the demo data.
+  Future<void> _seedDemoTasksIfNeeded() async {
+    const demoProjectId = 'proj_01';
+    final allTasks = await _dbHelper.getCachedTasks();
+    if (allTasks.isNotEmpty) return;
+    final demoProject = await _dbHelper.getCachedProject(demoProjectId);
+    if (demoProject == null) return;
+    await _dbHelper.cacheTasks(_buildDemoTasks(demoProjectId));
   }
 
   Future<Task> getTask(String taskId, {required bool isOnline}) async {
