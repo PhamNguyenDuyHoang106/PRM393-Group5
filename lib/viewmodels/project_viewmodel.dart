@@ -13,6 +13,7 @@ class ProjectState {
     this.isLoadingProjects = false,
     this.isLoadingDetails = false,
     this.isSubmitting = false,
+    this.isValidatingMember = false,
     this.errorMessage,
   }) : projects = List.unmodifiable(projects);
 
@@ -21,6 +22,7 @@ class ProjectState {
   final bool isLoadingProjects;
   final bool isLoadingDetails;
   final bool isSubmitting;
+  final bool isValidatingMember;
   final String? errorMessage;
 
   ProjectState copyWith({
@@ -30,6 +32,7 @@ class ProjectState {
     bool? isLoadingProjects,
     bool? isLoadingDetails,
     bool? isSubmitting,
+    bool? isValidatingMember,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -39,6 +42,7 @@ class ProjectState {
       isLoadingProjects: isLoadingProjects ?? this.isLoadingProjects,
       isLoadingDetails: isLoadingDetails ?? this.isLoadingDetails,
       isSubmitting: isSubmitting ?? this.isSubmitting,
+      isValidatingMember: isValidatingMember ?? this.isValidatingMember,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
@@ -52,11 +56,16 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
   final ConnectivityService _connectivityService;
   final Ref _ref;
 
-  Future<void> loadProjects() async {
-    state = state.copyWith(isLoadingProjects: true, clearError: true);
+  Future<void> loadProjects({bool requireFresh = false}) async {
+    state = state.copyWith(
+      projects: requireFresh ? const [] : null,
+      isLoadingProjects: true,
+      clearError: true,
+    );
     try {
       final projects = await _repository.getProjects(
         isOnline: _connectivityService.isOnline,
+        allowCacheFallback: !requireFresh,
       );
       state = state.copyWith(projects: projects, isLoadingProjects: false);
     } catch (error) {
@@ -100,6 +109,19 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
   }) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
+      final normalizedEmails = memberEmails
+          .map((email) => email.trim().toLowerCase())
+          .where((email) => email.isNotEmpty)
+          .toSet()
+          .toList();
+
+      for (final email in normalizedEmails) {
+        await _repository.findMemberByEmail(
+          email,
+          isOnline: _connectivityService.isOnline,
+        );
+      }
+
       final project = await _repository.createProject(
         name: name,
         description: description,
@@ -109,7 +131,7 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
 
       var details = ProjectDetails(project: project);
       final failedEmails = <String>[];
-      for (final email in memberEmails.toSet()) {
+      for (final email in normalizedEmails) {
         try {
           details = await _repository.addMember(
             projectId: project.id,
@@ -139,6 +161,22 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
         errorMessage: _messageFrom(error),
       );
       return null;
+    }
+  }
+
+  Future<String?> validateMemberEmail(String email) async {
+    state = state.copyWith(isValidatingMember: true, clearError: true);
+    try {
+      await _repository.findMemberByEmail(
+        email,
+        isOnline: _connectivityService.isOnline,
+      );
+      state = state.copyWith(isValidatingMember: false);
+      return null;
+    } catch (error) {
+      final message = _memberValidationMessage(error);
+      state = state.copyWith(isValidatingMember: false);
+      return message;
     }
   }
 
@@ -300,5 +338,13 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
     return message.isEmpty
         ? 'Something went wrong. Please try again.'
         : message;
+  }
+
+  String _memberValidationMessage(Object error) {
+    final message = _messageFrom(error);
+    if (message.toLowerCase().contains('not found')) {
+      return 'No account was found for this email.';
+    }
+    return message;
   }
 }

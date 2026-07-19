@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
+import '../../widgets/error_widget.dart';
 
 class MemberHomeScreen extends ConsumerWidget {
   const MemberHomeScreen({super.key});
@@ -13,7 +14,7 @@ class MemberHomeScreen extends ConsumerWidget {
     final stats = dashboardState.statistics;
 
     final projectCount = stats?.totalProjects ?? 0;
-    final assignedTasksCount = stats?.totalTasks ?? 0;
+    final assignedTasksCount = stats?.myTasks ?? 0;
     final completedTasksCount = stats?.completedTasks ?? 0;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -40,60 +41,71 @@ class MemberHomeScreen extends ConsumerWidget {
         },
         child: dashboardState.isLoading
             ? const Center(child: CircularProgressIndicator())
+            : dashboardState.errorMessage != null && stats == null
+            ? AppErrorDisplay(
+                title: 'Unable to load your data',
+                error: dashboardState.errorMessage!,
+                onRetry: () => ref
+                    .read(dashboardViewModelProvider.notifier)
+                    .loadStatistics(),
+              )
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good morning, ${user?.name ?? "Member"}!',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'My Projects',
-                      projectCount.toString(),
-                      Icons.folder,
-                      Colors.blue,
-                      '/projects',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Good morning, ${user?.name ?? "Member"}!',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'Tasks Assigned',
-                      assignedTasksCount.toString(),
-                      Icons.assignment,
-                      Colors.amber,
-                      '/tasks',
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'My Projects',
+                            projectCount.toString(),
+                            Icons.folder,
+                            Colors.blue,
+                            '/projects',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Tasks Assigned',
+                            assignedTasksCount.toString(),
+                            Icons.assignment,
+                            Colors.amber,
+                            '/tasks',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'Completed Tasks',
-                      completedTasksCount.toString(),
-                      Icons.check_circle,
-                      Colors.green,
-                      '/tasks',
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Completed Tasks',
+                            completedTasksCount.toString(),
+                            Icons.check_circle,
+                            Colors.green,
+                            '/tasks',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -119,7 +131,10 @@ class MemberHomeScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               Text(
                 count,
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(

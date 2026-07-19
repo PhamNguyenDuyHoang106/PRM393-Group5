@@ -11,8 +11,6 @@ import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/project_card.dart';
 
-enum _ProjectScope { all, owned, joined }
-
 enum _ProjectSort { newest, oldest, nameAscending, nameDescending }
 
 class ProjectListScreen extends ConsumerStatefulWidget {
@@ -25,7 +23,6 @@ class ProjectListScreen extends ConsumerStatefulWidget {
 class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   final _searchController = TextEditingController();
   String _query = '';
-  _ProjectScope _scope = _ProjectScope.all;
   _ProjectSort _sort = _ProjectSort.newest;
 
   @override
@@ -41,13 +38,17 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   }
 
   Future<void> _refresh() {
-    return ref.read(projectViewModelProvider.notifier).loadProjects();
+    return ref
+        .read(projectViewModelProvider.notifier)
+        .loadProjects(requireFresh: true);
   }
 
   List<Project> _visibleProjects(
     List<Project> projects,
     String? currentUserId,
+    bool isManager,
   ) {
+    if (currentUserId == null) return const [];
     final normalizedQuery = _query.trim().toLowerCase();
     final filtered = projects.where((project) {
       final matchesQuery =
@@ -55,12 +56,8 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           project.name.toLowerCase().contains(normalizedQuery) ||
           project.description.toLowerCase().contains(normalizedQuery);
       final isOwned = project.ownerId == currentUserId;
-      final matchesScope = switch (_scope) {
-        _ProjectScope.all => true,
-        _ProjectScope.owned => isOwned,
-        _ProjectScope.joined => !isOwned,
-      };
-      return matchesQuery && matchesScope;
+      final matchesRole = isManager ? isOwned : !isOwned;
+      return matchesQuery && matchesRole;
     }).toList();
 
     filtered.sort((first, second) {
@@ -129,11 +126,10 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     }
   }
 
-  void _resetFilters() {
+  void _resetView() {
     _searchController.clear();
     setState(() {
       _query = '';
-      _scope = _ProjectScope.all;
       _sort = _ProjectSort.newest;
     });
   }
@@ -146,7 +142,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Projects'),
+        title: Text(canCreateProject ? 'Managed Projects' : 'My Projects'),
         actions: [
           IconButton(
             tooltip: 'Refresh projects',
@@ -155,7 +151,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           ),
         ],
       ),
-      body: _buildBody(projectState, user?.id),
+      body: _buildBody(projectState, user?.id, canCreateProject),
       floatingActionButton: canCreateProject
           ? FloatingActionButton.extended(
               onPressed: projectState.isSubmitting ? null : _openCreate,
@@ -166,7 +162,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     );
   }
 
-  Widget _buildBody(ProjectState state, String? currentUserId) {
+  Widget _buildBody(ProjectState state, String? currentUserId, bool isManager) {
     if (state.isLoadingProjects && state.projects.isEmpty) {
       return const LoadingWidget(message: 'Loading projects...');
     }
@@ -178,7 +174,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
       );
     }
 
-    final projects = _visibleProjects(state.projects, currentUserId);
+    final projects = _visibleProjects(state.projects, currentUserId, isManager);
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
@@ -209,11 +205,23 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
             ),
           ),
           const SizedBox(height: AppConstants.paddingSm),
-          _FilterBar(
-            scope: _scope,
-            sort: _sort,
-            onScopeChanged: (value) => setState(() => _scope = value),
-            onSortChanged: (value) => setState(() => _sort = value),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isManager
+                      ? 'Projects you manage'
+                      : 'Projects you participate in',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              _ProjectSortButton(
+                sort: _sort,
+                onChanged: (value) => setState(() => _sort = value),
+              ),
+            ],
           ),
           if (state.errorMessage != null) ...[
             const SizedBox(height: AppConstants.paddingMd),
@@ -227,13 +235,8 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               const Spacer(),
-              if (_query.isNotEmpty ||
-                  _scope != _ProjectScope.all ||
-                  _sort != _ProjectSort.newest)
-                TextButton(
-                  onPressed: _resetFilters,
-                  child: const Text('Reset filters'),
-                ),
+              if (_query.isNotEmpty || _sort != _ProjectSort.newest)
+                TextButton(onPressed: _resetView, child: const Text('Reset')),
             ],
           ),
           const SizedBox(height: AppConstants.paddingSm),
@@ -242,7 +245,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               height: 360,
               child: EmptyWidget(
                 title: 'No matching projects',
-                message: 'Try changing your search or project filter.',
+                message: 'Try changing your search or sorting option.',
                 icon: Icons.folder_off_outlined,
               ),
             )
@@ -262,61 +265,40 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({
-    required this.scope,
-    required this.sort,
-    required this.onScopeChanged,
-    required this.onSortChanged,
-  });
+class _ProjectSortButton extends StatelessWidget {
+  const _ProjectSortButton({required this.sort, required this.onChanged});
 
-  final _ProjectScope scope;
   final _ProjectSort sort;
-  final ValueChanged<_ProjectScope> onScopeChanged;
-  final ValueChanged<_ProjectSort> onSortChanged;
+  final ValueChanged<_ProjectSort> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: SegmentedButton<_ProjectScope>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: _ProjectScope.all, label: Text('All')),
-              ButtonSegment(value: _ProjectScope.owned, label: Text('Owned')),
-              ButtonSegment(value: _ProjectScope.joined, label: Text('Joined')),
-            ],
-            selected: {scope},
-            onSelectionChanged: (value) => onScopeChanged(value.first),
-          ),
+    final label = switch (sort) {
+      _ProjectSort.newest => 'Newest',
+      _ProjectSort.oldest => 'Oldest',
+      _ProjectSort.nameAscending => 'Name A–Z',
+      _ProjectSort.nameDescending => 'Name Z–A',
+    };
+    return PopupMenuButton<_ProjectSort>(
+      tooltip: 'Sort projects',
+      initialValue: sort,
+      onSelected: onChanged,
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: _ProjectSort.newest, child: Text('Newest first')),
+        PopupMenuItem(value: _ProjectSort.oldest, child: Text('Oldest first')),
+        PopupMenuItem(
+          value: _ProjectSort.nameAscending,
+          child: Text('Name A–Z'),
         ),
-        const SizedBox(width: AppConstants.paddingSm),
-        PopupMenuButton<_ProjectSort>(
-          tooltip: 'Sort projects',
-          initialValue: sort,
-          onSelected: onSortChanged,
-          icon: const Icon(Icons.sort_rounded),
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: _ProjectSort.newest,
-              child: Text('Newest first'),
-            ),
-            PopupMenuItem(
-              value: _ProjectSort.oldest,
-              child: Text('Oldest first'),
-            ),
-            PopupMenuItem(
-              value: _ProjectSort.nameAscending,
-              child: Text('Name A–Z'),
-            ),
-            PopupMenuItem(
-              value: _ProjectSort.nameDescending,
-              child: Text('Name Z–A'),
-            ),
-          ],
+        PopupMenuItem(
+          value: _ProjectSort.nameDescending,
+          child: Text('Name Z–A'),
         ),
       ],
+      child: Chip(
+        avatar: const Icon(Icons.sort_rounded, size: 18),
+        label: Text(label),
+      ),
     );
   }
 }

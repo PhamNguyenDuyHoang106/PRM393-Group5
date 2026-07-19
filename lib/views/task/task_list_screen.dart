@@ -28,7 +28,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     Future.microtask(
       () => ref
           .read(taskViewModelProvider.notifier)
-          .loadTasks(projectId: widget.projectId),
+          .loadTasks(projectId: widget.projectId, requireFresh: true),
     );
   }
 
@@ -49,7 +49,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   Future<void> _refresh() {
     return ref
         .read(taskViewModelProvider.notifier)
-        .loadTasks(projectId: widget.projectId);
+        .loadTasks(projectId: widget.projectId, requireFresh: true);
   }
 
   @override

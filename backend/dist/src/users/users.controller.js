@@ -19,6 +19,7 @@ const users_service_1 = require("./users.service");
 const auth_guard_1 = require("../guards/auth.guard");
 const user_decorator_1 = require("../decorators/user.decorator");
 const update_profile_dto_1 = require("./dto/update-profile.dto");
+const find_user_by_email_dto_1 = require("./dto/find-user-by-email.dto");
 let UsersController = class UsersController {
     usersService;
     constructor(usersService) {
@@ -29,6 +30,9 @@ let UsersController = class UsersController {
     }
     async updateProfile(userId, updateProfileDto) {
         return this.usersService.updateProfile(userId, updateProfileDto);
+    }
+    async getUserByEmail(query) {
+        return this.usersService.findByEmail(query.email);
     }
     async getUserById(id) {
         return this.usersService.findById(id);
@@ -54,6 +58,16 @@ __decorate([
     __metadata("design:paramtypes", [String, update_profile_dto_1.UpdateProfileDto]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "updateProfile", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Find a registered user by email' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'User returned successfully.' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'User not found.' }),
+    (0, common_1.Get)('by-email'),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [find_user_by_email_dto_1.FindUserByEmailDto]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "getUserByEmail", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Get user profile by ID' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Profile returned successfully.' }),

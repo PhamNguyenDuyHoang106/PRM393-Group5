@@ -64,14 +64,15 @@ class Task {
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
       id: json['id'].toString(),
-      projectId: json['project_id'].toString(),
+      projectId: (json['project_id'] ?? json['projectId'] ?? '').toString(),
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       priority: json['priority']?.toString().toUpperCase() ?? 'MEDIUM',
       status: json['status']?.toString().toUpperCase() ?? 'TODO',
-      assignedTo: json['assigned_to']?.toString(),
-      dueDate: _parseDate(json['due_date']),
-      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
+      assignedTo: (json['assigned_to'] ?? json['assignedTo'])?.toString(),
+      dueDate: _parseDate(json['due_date'] ?? json['dueDate']),
+      createdAt:
+          _parseDate(json['created_at'] ?? json['createdAt']) ?? DateTime.now(),
     );
   }
 

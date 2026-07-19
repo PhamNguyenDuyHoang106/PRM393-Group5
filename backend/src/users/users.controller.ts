@@ -1,9 +1,23 @@
-import { Controller, Get, Put, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { GetUser } from '../decorators/user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { FindUserByEmailDto } from './dto/find-user-by-email.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('Authorization')
@@ -27,6 +41,14 @@ export class UsersController {
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
     return this.usersService.updateProfile(userId, updateProfileDto);
+  }
+
+  @ApiOperation({ summary: 'Find a registered user by email' })
+  @ApiResponse({ status: 200, description: 'User returned successfully.' })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  @Get('by-email')
+  async getUserByEmail(@Query() query: FindUserByEmailDto) {
+    return this.usersService.findByEmail(query.email);
   }
 
   @ApiOperation({ summary: 'Get user profile by ID' })

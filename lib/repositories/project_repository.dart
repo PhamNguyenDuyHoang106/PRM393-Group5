@@ -28,8 +28,11 @@ class ProjectRepository {
   }
 
   // ─── GET /projects ────────────────────────────────────────────────────────
-  Future<List<Project>> getProjects({required bool isOnline}) async {
-    if (isOnline) {
+  Future<List<Project>> getProjects({
+    required bool isOnline,
+    bool allowCacheFallback = true,
+  }) async {
+    if (isOnline || !allowCacheFallback) {
       try {
         final response = await _dio.get('/projects');
         final raw = _unwrap(response.data);
@@ -42,9 +45,16 @@ class ProjectRepository {
             .toList();
         await _dbHelper.cacheProjects(projects);
         return projects;
-      } catch (_) {
-        // Fall back to cache below.
+      } catch (error) {
+        if (!allowCacheFallback || !_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to load projects.');
+        }
       }
+    }
+    if (!allowCacheFallback) {
+      throw const ProjectException(
+        'Unable to load live project data. Check your internet connection.',
+      );
     }
     final cached = await _dbHelper.getCachedProjects();
     if (cached.isNotEmpty) return cached;
@@ -111,6 +121,37 @@ class ProjectRepository {
     await _dbHelper.cacheProjects([project]);
     await _enqueueAction('CREATE_PROJECT', project.toJson());
     return project;
+  }
+
+  // GET /users/by-email
+  Future<ProjectMember> findMemberByEmail(
+    String email, {
+    required bool isOnline,
+  }) async {
+    if (!isOnline) {
+      throw const ProjectException(
+        'Connect to the internet to verify this account.',
+      );
+    }
+
+    try {
+      final response = await _dio.get(
+        '/users/by-email',
+        queryParameters: {'email': email.trim().toLowerCase()},
+      );
+      final raw = _unwrap(response.data);
+      if (raw is! Map) {
+        throw const FormatException('Invalid user lookup response.');
+      }
+      return ProjectMember.fromJson(Map<String, dynamic>.from(raw));
+    } catch (error) {
+      if (_isConnectionFailure(error)) {
+        throw const ProjectException(
+          'Cannot verify this account. Check your internet connection.',
+        );
+      }
+      throw _apiException(error, 'No account was found for this email.');
+    }
   }
 
   // ─── POST /projects/:id/members ───────────────────────────────────────────

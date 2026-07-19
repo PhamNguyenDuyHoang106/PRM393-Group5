@@ -5,9 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../models/project.dart';
-import '../../models/task.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/project_viewmodel.dart';
+import '../../viewmodels/task_viewmodel.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
 
@@ -35,7 +35,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           .loadProjectDetails(widget.projectId),
       ref
           .read(taskViewModelProvider.notifier)
-          .loadTasks(projectId: widget.projectId),
+          .loadTasks(projectId: widget.projectId, requireFresh: true),
     ]);
   }
 
@@ -162,14 +162,14 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
             ),
         ],
       ),
-      body: _buildBody(state, details, taskState.tasks, isOwner),
+      body: _buildBody(state, details, taskState, isOwner),
     );
   }
 
   Widget _buildBody(
     ProjectState state,
     ProjectDetails? details,
-    List<Task> allTasks,
+    TaskState taskState,
     bool isOwner,
   ) {
     if (state.isLoadingDetails && details == null) {
@@ -184,18 +184,6 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     }
 
     final project = details.project;
-    final tasks = allTasks
-        .where((task) => task.projectId == widget.projectId)
-        .toList();
-    final todo = tasks.where((task) => task.status == 'TODO').length;
-    final inProgress = tasks
-        .where((task) => task.status == 'IN_PROGRESS')
-        .length;
-    final done = tasks.where((task) => task.status == 'DONE').length;
-    final completion = tasks.isEmpty
-        ? 0
-        : ((done / tasks.length) * 100).round();
-
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
@@ -238,40 +226,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
             onAction: () => _openTasks(null),
           ),
           const SizedBox(height: AppConstants.paddingSm),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: AppConstants.paddingSm,
-            mainAxisSpacing: AppConstants.paddingSm,
-            childAspectRatio: 1.7,
-            children: [
-              _TaskMetric(
-                label: 'All tasks',
-                value: '${tasks.length}',
-                color: Theme.of(context).colorScheme.primary,
-                onTap: () => _openTasks(null),
-              ),
-              _TaskMetric(
-                label: 'Completed',
-                value: '$completion%',
-                color: AppConstants.doneColor,
-                onTap: () => _openTasks('DONE'),
-              ),
-              _TaskMetric(
-                label: 'To do',
-                value: '$todo',
-                color: AppConstants.todoColor,
-                onTap: () => _openTasks('TODO'),
-              ),
-              _TaskMetric(
-                label: 'In progress',
-                value: '$inProgress',
-                color: AppConstants.inProgressColor,
-                onTap: () => _openTasks('IN_PROGRESS'),
-              ),
-            ],
-          ),
+          _buildTaskProgress(taskState),
           const SizedBox(height: AppConstants.paddingLg),
           _SectionTitle(
             title: 'Project members',
@@ -316,6 +271,101 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           const SizedBox(height: AppConstants.paddingLg),
         ],
       ),
+    );
+  }
+
+  Widget _buildTaskProgress(TaskState taskState) {
+    if (taskState.isLoadingTasks) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(AppConstants.paddingLg),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: AppConstants.paddingMd),
+              Text('Loading live task data...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (taskState.errorMessage != null) {
+      return Card(
+        color: Theme.of(context).colorScheme.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.paddingMd),
+          child: Row(
+            children: [
+              Icon(
+                Icons.cloud_off_outlined,
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+              const SizedBox(width: AppConstants.paddingMd),
+              Expanded(
+                child: Text(
+                  taskState.errorMessage!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final tasks = taskState.tasks
+        .where((task) => task.projectId == widget.projectId)
+        .toList();
+    final todo = tasks.where((task) => task.status == 'TODO').length;
+    final inProgress = tasks
+        .where((task) => task.status == 'IN_PROGRESS')
+        .length;
+    final done = tasks.where((task) => task.status == 'DONE').length;
+    final completion = tasks.isEmpty
+        ? 0
+        : ((done / tasks.length) * 100).round();
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: AppConstants.paddingSm,
+      mainAxisSpacing: AppConstants.paddingSm,
+      childAspectRatio: 1.7,
+      children: [
+        _TaskMetric(
+          label: 'All tasks',
+          value: '${tasks.length}',
+          color: Theme.of(context).colorScheme.primary,
+          onTap: () => _openTasks(null),
+        ),
+        _TaskMetric(
+          label: 'Completed',
+          value: '$completion%',
+          color: AppConstants.doneColor,
+          onTap: () => _openTasks('DONE'),
+        ),
+        _TaskMetric(
+          label: 'To do',
+          value: '$todo',
+          color: AppConstants.todoColor,
+          onTap: () => _openTasks('TODO'),
+        ),
+        _TaskMetric(
+          label: 'In progress',
+          value: '$inProgress',
+          color: AppConstants.inProgressColor,
+          onTap: () => _openTasks('IN_PROGRESS'),
+        ),
+      ],
     );
   }
 

@@ -8,7 +8,9 @@ import 'providers.dart';
 
 /// Provider cho SharedPreferences
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError('sharedPreferencesProvider must be overridden in main.dart');
+  throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in main.dart',
+  );
 });
 
 /// Provider cho StatisticsRepository
@@ -19,20 +21,23 @@ final statisticsRepositoryProvider = Provider<StatisticsRepository>((ref) {
 /// Provider cho DashboardViewModel
 final dashboardViewModelProvider =
     StateNotifierProvider<DashboardViewModel, DashboardState>((ref) {
-  final repository = ref.watch(statisticsRepositoryProvider);
-  return DashboardViewModel(repository);
-});
+      // Recreate the dashboard state whenever the authenticated account changes,
+      // preventing one user's statistics from leaking into another user's home.
+      ref.watch(authViewModelProvider.select((state) => state.user?.id));
+      final repository = ref.watch(statisticsRepositoryProvider);
+      return DashboardViewModel(repository);
+    });
 
 /// Provider cho NotificationViewModel
 final notificationViewModelProvider =
     StateNotifierProvider<NotificationViewModel, NotificationState>((ref) {
-  final repository = ref.watch(notificationRepositoryProvider);
-  return NotificationViewModel(repository);
-});
+      final repository = ref.watch(notificationRepositoryProvider);
+      return NotificationViewModel(repository);
+    });
 
 /// Provider cho SettingsViewModel
 final settingsViewModelProvider =
     StateNotifierProvider<SettingsViewModel, SettingsState>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return SettingsViewModel(prefs);
-});
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return SettingsViewModel(prefs);
+    });
