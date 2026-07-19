@@ -130,6 +130,21 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const Divider(height: 1, indent: 56),
               ListTile(
+                leading: const Icon(Icons.description_rounded, color: Colors.indigoAccent),
+                title: Text(
+                  'Terms & Privacy Policy',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: const Text('Read terms of service and privacy rules'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => _showTermsDialog(context, isDark),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+              const Divider(height: 1, indent: 56),
+              ListTile(
                 leading: const Icon(Icons.info_rounded, color: Colors.teal),
                 title: Text(
                   'About Application',
@@ -139,6 +154,8 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 subtitle: const Text('Smart Task Management v1.0.0 (PRM393 MVP)'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => _showAboutDialog(context, isDark),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
             ],
@@ -358,6 +375,137 @@ class SettingsScreen extends ConsumerWidget {
               }
             },
             child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTermsDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Terms & Privacy Policy',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              Text(
+                '1. Terms of Use',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.cyanAccent : Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'By using the Smart Task Management application, you agree to comply with our policies and rules regarding task and project data.',
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '2. Data Privacy',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.cyanAccent : Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Your task data is stored securely in your offline SQLite database and is only synchronized when you connect to our authorized network services.',
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '3. Policy Updates',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.cyanAccent : Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'We reserve the right to modify these terms. Continued usage of the application implies consent to all revisions.',
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Agree & Close', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'About Application',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF1E293B),
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withAlpha(26),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.info_rounded, size: 48, color: Colors.teal),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  'Smart Task Management',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: Text(
+                  'Version 1.0.0 (PRM393 MVP)',
+                  style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600, fontSize: 13),
+                ),
+              ),
+              const Divider(height: 24),
+              Text(
+                'This application is built for the PRM393 course project to provide offline-first task tracking, statistics visualization, and sync capabilities.',
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
