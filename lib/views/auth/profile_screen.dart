@@ -208,6 +208,28 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       onTap: () {},
                     ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: Icon(
+                        Icons.settings_outlined,
+                        color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
+                      ),
+                      title: Text(
+                        'Advanced Settings',
+                        style: TextStyle(
+                          color: isDark ? AppConstants.textDark : AppConstants.textLight,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Offline cache, sound and database configurations',
+                        style: TextStyle(
+                          color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
+                          fontSize: 12,
+                        ),
+                      ),
+                      onTap: () => context.push('/settings'),
+                    ),
                   ],
                 ),
               ),

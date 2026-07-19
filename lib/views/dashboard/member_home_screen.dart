@@ -91,8 +91,68 @@ class MemberHomeScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Progress Statistics',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/stats'),
+                    child: const Text('View Charts'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildOverallProgressBar(assignedTasksCount, completedTasksCount),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverallProgressBar(int total, int completed) {
+    final double percentage = total > 0 ? (completed / total) : 0.0;
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Overall Completion Rate',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${(percentage * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: percentage,
+                minHeight: 8,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$completed of $total tasks completed',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
         ),
       ),
     );
