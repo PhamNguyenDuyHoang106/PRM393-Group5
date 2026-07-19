@@ -1,78 +1,72 @@
-import 'package:dio/dio.dart';
-
 import '../core/database/db_helper.dart';
-import '../core/network/dio_client.dart';
 import '../models/notification.dart';
 
 class NotificationRepository {
-  NotificationRepository({DbHelper? dbHelper, Dio? dio})
-    : _dbHelper = dbHelper ?? DbHelper.instance,
-      _dio = dio ?? DioClient.instance.dio;
+  final DbHelper _dbHelper = DbHelper.instance;
 
-  final DbHelper _dbHelper;
-  final Dio _dio;
+  Future<List<AppNotification>> getNotifications() async {
+    try {
+      // final response = await _dioClient.dio.get('/notifications');
+      // final List data = response.data;
+      // final List<AppNotification> notifs = data.map((json) => AppNotification.fromJson(json)).toList();
 
-  // ─── Helper: unwrap NestJS { success, data } envelope ────────────────────
-  dynamic _unwrap(dynamic responseData) {
-    if (responseData is Map && responseData.containsKey('data')) {
-      return responseData['data'];
+      await Future.delayed(const Duration(milliseconds: 500));
+      final notifs = [
+        AppNotification(
+          id: 'notif_001',
+          userId: 'usr_7719',
+          title: 'New Task Assigned',
+          message: 'You have been assigned to Integrate Dio Client by Hoang Manager.',
+          readStatus: 0,
+          createdAt: DateTime.now().subtract(const Duration(minutes: 10)),
+        ),
+      ];
+
+      await _dbHelper.cacheNotifications(notifs);
+      return notifs;
+    } catch (_) {
+      return await _dbHelper.getCachedNotifications();
     }
-    return responseData;
   }
 
-  // ─── GET /notifications ───────────────────────────────────────────────────
-  Future<List<AppNotification>> getNotifications({bool isOnline = true}) async {
-    if (isOnline) {
-      try {
-        final response = await _dio.get('/notifications');
-        final raw = _unwrap(response.data);
-        if (raw is! List) throw const FormatException('Invalid notifications response.');
-        final notifs = (raw)
-            .whereType<Map>()
-            .map((json) => AppNotification.fromJson(Map<String, dynamic>.from(json)))
-            .toList();
-        await _dbHelper.cacheNotifications(notifs);
-        return notifs;
-      } catch (_) {}
-    }
-    return _dbHelper.getCachedNotifications();
-  }
-
-  // ─── GET /notifications/unread-count ─────────────────────────────────────
-  Future<int> getUnreadCount({bool isOnline = true}) async {
-    if (isOnline) {
-      try {
-        final response = await _dio.get('/notifications/unread-count');
-        final raw = _unwrap(response.data);
-        if (raw is Map && raw.containsKey('unreadCount')) {
-          return (raw['unreadCount'] as num).toInt();
-        }
-      } catch (_) {}
-    }
-    final cached = await _dbHelper.getCachedNotifications();
-    return cached.where((n) => n.readStatus == 0).length;
-  }
-
-  // ─── PUT /notifications/:id/read ─────────────────────────────────────────
   Future<void> markAsRead(AppNotification notification) async {
     final updated = notification.copyWith(readStatus: 1);
     await _dbHelper.cacheNotifications([updated]);
 
     try {
-      await _dio.put('/notifications/${notification.id}/read');
+      // Put read status to API
+      // await _dioClient.dio.put('/notifications/${notification.id}', data: updated.toJson());
     } catch (_) {
-      // Notification read status is non-critical — suppress network errors.
+      // Suppress network errors
     }
   }
 
-  // ─── PUT /notifications/read-all ─────────────────────────────────────────
   Future<void> markAllAsRead() async {
+    final notifs = await _dbHelper.getCachedNotifications();
+    final updated = notifs.map((n) => n.copyWith(readStatus: 1)).toList();
+    await _dbHelper.cacheNotifications(updated);
+
     try {
-      await _dio.put('/notifications/read-all');
-      // Refresh local cache after marking all as read
-      final cached = await _dbHelper.getCachedNotifications();
-      final allRead = cached.map((n) => n.copyWith(readStatus: 1)).toList();
-      await _dbHelper.cacheNotifications(allRead);
-    } catch (_) {}
+      // Put read status to API
+      // await _dioClient.dio.put('/notifications/read-all');
+    } catch (_) {
+      // Suppress network errors
+    }
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    final db = await _dbHelper.database;
+    await db.delete(
+      'notifications',
+      where: 'id = ?',
+      whereArgs: [notificationId],
+    );
+
+    try {
+      // Delete notification on API
+      // await _dioClient.dio.delete('/notifications/$notificationId');
+    } catch (_) {
+      // Suppress network errors
+    }
   }
 }

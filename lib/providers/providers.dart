@@ -9,6 +9,7 @@ import '../viewmodels/statistics_viewmodel.dart';
 export 'project_provider.dart';
 export 'service_providers.dart';
 export 'task_provider.dart';
+export 'dashboard_provider.dart';
 export '../viewmodels/forgot_password_viewmodel.dart';
 
 // Repository Providers

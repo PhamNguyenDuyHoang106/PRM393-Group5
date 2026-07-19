@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../providers/providers.dart';
+import '../../providers/dashboard_provider.dart';
+import '../../models/statistics.dart';
 
 class StatisticsScreen extends ConsumerStatefulWidget {
   const StatisticsScreen({super.key});
@@ -11,512 +12,229 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
+  bool _showStatusStats = true; // True for Status, False for Priority
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(statisticsViewModelProvider.notifier).loadDashboardStats();
+      ref.read(dashboardViewModelProvider.notifier).loadStatistics();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(statisticsViewModelProvider);
+    final dashboardState = ref.watch(dashboardViewModelProvider);
+    final stats = dashboardState.statistics;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Task Analytics',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E293B),
+        title: const Text('Thống kê công việc'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(dashboardViewModelProvider.notifier).refreshData(),
+          ),
+        ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(statisticsViewModelProvider.notifier).loadDashboardStats();
-        },
-        child: state.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : state.errorMessage != null
-                ? _buildErrorView(state.errorMessage!)
-                : state.stats == null
-                    ? const Center(child: Text('No data available'))
-                    : _buildDashboard(state.stats!),
-      ),
+      body: dashboardState.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : stats == null
+              ? _buildEmptyState()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSelectorToggle(),
+                      const SizedBox(height: 24),
+                      _buildChartSection(stats),
+                      const SizedBox(height: 24),
+                      _buildDetailsList(stats),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _buildErrorView(String message) {
+  Widget _buildEmptyState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () =>
-                  ref.read(statisticsViewModelProvider.notifier).loadDashboardStats(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F46E5),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDashboard(dynamic stats) {
-    final statusStats = stats.tasksByStatus;
-    final todo = statusStats['TODO'] ?? 0;
-    final inProgress = statusStats['IN_PROGRESS'] ?? 0;
-    final done = statusStats['DONE'] ?? 0;
-    final total = todo + inProgress + done;
-
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // ─── Completion Rate Header Card ───
-          _buildCompletionRateCard(stats.overallCompletionRate, done, total),
-          const SizedBox(height: 24),
-
-          // ─── Chart: Task Distribution (PieChart) ───
-          const Text(
-            'Task Status Distribution',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildStatusPieChart(todo, inProgress, done, total),
-          const SizedBox(height: 28),
-
-          // ─── Chart: Priority Level (BarChart) ───
-          const Text(
-            'Tasks by Priority Level',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildPriorityBarChart(stats.tasksByPriority),
-          const SizedBox(height: 28),
-
-          // ─── Projects Breakdown List ───
-          const Text(
-            'Projects Performance Breakdown',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1E293B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...stats.projectStats.map((p) => _buildProjectStatRow(p)),
+          const Icon(Icons.pie_chart_outline, size: 72, color: Colors.grey),
           const SizedBox(height: 16),
+          const Text('Không có dữ liệu thống kê', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () => ref.read(dashboardViewModelProvider.notifier).loadStatistics(),
+            child: const Text('Thử lại'),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCompletionRateCard(int rate, int done, int total) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  Widget _buildSelectorToggle() {
+    return SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment<bool>(
+          value: true,
+          label: Text('Theo Trạng thái'),
+          icon: Icon(Icons.donut_large),
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4F46E5).withAlpha(76),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Overall Completion Rate',
-            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$rate%',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 48,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(51),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$done / $total Tasks Done',
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: total > 0 ? (done / total) : 0,
-              backgroundColor: Colors.white.withAlpha(38),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              minHeight: 8,
-            ),
-          ),
-        ],
-      ),
+        ButtonSegment<bool>(
+          value: false,
+          label: Text('Theo Mức độ ưu tiên'),
+          icon: Icon(Icons.bar_chart),
+        ),
+      ],
+      selected: {_showStatusStats},
+      onSelectionChanged: (Set<bool> newSelection) {
+        setState(() {
+          _showStatusStats = newSelection.first;
+        });
+      },
     );
   }
 
-  Widget _buildStatusPieChart(int todo, int inProgress, int done, int total) {
+  Widget _buildChartSection(Statistics stats) {
+    final dataMap = _showStatusStats ? stats.taskStatusDistribution : stats.taskPriorityDistribution;
+    final total = dataMap.values.fold(0, (sum, val) => sum + val);
+
     if (total == 0) {
-      return Container(
+      return const SizedBox(
         height: 200,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Text('No tasks created yet', style: TextStyle(color: Colors.grey)),
+        child: Center(child: Text('Không có công việc nào')),
       );
     }
 
-    final pTodo = (todo / total * 100).round();
-    final pInProgress = (inProgress / total * 100).round();
-    final pDone = 100 - pTodo - pInProgress;
+    final List<PieChartSectionData> sections = [];
 
-    return Container(
-      height: 220,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(5),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 4,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 4,
-                centerSpaceRadius: 40,
-                sections: [
-                  if (todo > 0)
-                    PieChartSectionData(
-                      color: const Color(0xFFF59E0B),
-                      value: todo.toDouble(),
-                      title: '$pTodo%',
-                      radius: 50,
-                      titleStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  if (inProgress > 0)
-                    PieChartSectionData(
-                      color: const Color(0xFF3B82F6),
-                      value: inProgress.toDouble(),
-                      title: '$pInProgress%',
-                      radius: 50,
-                      titleStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  if (done > 0)
-                    PieChartSectionData(
-                      color: const Color(0xFF10B981),
-                      value: done.toDouble(),
-                      title: '$pDone%',
-                      radius: 50,
-                      titleStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                ],
-              ),
+    dataMap.forEach((key, value) {
+      if (value > 0) {
+        final percentage = (value / total) * 100;
+        sections.add(
+          PieChartSectionData(
+            color: _getColorForCategory(key),
+            value: value.toDouble(),
+            title: '${percentage.toStringAsFixed(0)}%',
+            radius: 50,
+            titleStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 3,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLegendItem('Todo', '$todo tasks', const Color(0xFFF59E0B)),
-                const SizedBox(height: 12),
-                _buildLegendItem('In Progress', '$inProgress tasks', const Color(0xFF3B82F6)),
-                const SizedBox(height: 12),
-                _buildLegendItem('Completed', '$done tasks', const Color(0xFF10B981)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        );
+      }
+    });
 
-  Widget _buildLegendItem(String title, String subtitle, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
           children: [
             Text(
-              title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+              _showStatusStats ? 'Phân bổ theo trạng thái' : 'Phân bổ theo độ ưu tiên',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPriorityBarChart(Map<String, int> priorities) {
-    final low = priorities['LOW'] ?? 0;
-    final medium = priorities['MEDIUM'] ?? 0;
-    final high = priorities['HIGH'] ?? 0;
-    final maxCount = [low, medium, high].reduce((a, b) => a > b ? a : b);
-    final double maxY = maxCount > 0 ? (maxCount + 2).toDouble() : 5.0;
-
-    return Container(
-      height: 240,
-      padding: const EdgeInsets.only(top: 24, left: 12, right: 16, bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(5),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: BarChart(
-        BarChartData(
-          maxY: maxY,
-          gridData: const FlGridData(show: false),
-          titlesData: FlTitlesData(
-            show: true,
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (val, meta) => Text(
-                  val.toInt().toString(),
-                  style: const TextStyle(color: Colors.grey, fontSize: 10),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
+                  sections: sections,
                 ),
-                reservedSize: 24,
               ),
             ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (val, meta) {
-                  String label = '';
-                  switch (val.toInt()) {
-                    case 0:
-                      label = 'Low';
-                      break;
-                    case 1:
-                      label = 'Medium';
-                      break;
-                    case 2:
-                      label = 'High';
-                      break;
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      label,
-                      style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold, fontSize: 11),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          borderData: FlBorderData(show: false),
-          barGroups: [
-            BarChartGroupData(
-              x: 0,
-              barRods: [
-                BarChartRodData(
-                  toY: low.toDouble(),
-                  color: const Color(0xFF10B981),
-                  width: 32,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-            BarChartGroupData(
-              x: 1,
-              barRods: [
-                BarChartRodData(
-                  toY: medium.toDouble(),
-                  color: const Color(0xFFF59E0B),
-                  width: 32,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-            BarChartGroupData(
-              x: 2,
-              barRods: [
-                BarChartRodData(
-                  toY: high.toDouble(),
-                  color: const Color(0xFFEF4444),
-                  width: 32,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(6),
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: 16),
+            _buildLegend(dataMap),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildProjectStatRow(dynamic p) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(3),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                p.projectName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Color(0xFF1E293B),
-                ),
+  Widget _buildLegend(Map<String, int> dataMap) {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: dataMap.keys.map((key) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: _getColorForCategory(key),
+                shape: BoxShape.circle,
               ),
-              Text(
-                '${p.doneCount}/${p.totalTasks} Tasks',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: p.totalTasks > 0 ? (p.doneCount / p.totalTasks) : 0,
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      p.completionRate == 100
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF6366F1),
-                    ),
-                    minHeight: 6,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${p.completionRate}%',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Color(0xFF4F46E5),
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 6),
+            Text('$key (${dataMap[key]})'),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDetailsList(Statistics stats) {
+    final dataMap = _showStatusStats ? stats.taskStatusDistribution : stats.taskPriorityDistribution;
+    final total = dataMap.values.fold(0, (sum, val) => sum + val);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: dataMap.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final key = dataMap.keys.elementAt(index);
+          final val = dataMap[key] ?? 0;
+          final percentage = total > 0 ? (val / total) * 100 : 0.0;
+
+          return ListTile(
+            leading: Icon(Icons.circle, color: _getColorForCategory(key), size: 16),
+            title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold)),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$val tasks', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('${percentage.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          );
+        },
       ),
     );
+  }
+
+  Color _getColorForCategory(String key) {
+    switch (key.toUpperCase()) {
+      case 'TODO':
+        return Colors.blue;
+      case 'IN_PROGRESS':
+        return Colors.orange;
+      case 'DONE':
+        return Colors.green;
+      case 'LOW':
+        return Colors.grey;
+      case 'MEDIUM':
+        return Colors.indigo;
+      case 'HIGH':
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
   }
 }
