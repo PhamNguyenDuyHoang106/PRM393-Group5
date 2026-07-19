@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:firebase_core/firebase_core.dart';
 import '../core/database/db_helper.dart';
+import '../core/network/dio_client.dart';
 import '../models/pending_action.dart';
+import '../models/user.dart';
 import 'connectivity_service.dart';
 
 class SyncService {
@@ -74,53 +78,107 @@ class SyncService {
     final Map<String, dynamic> data = jsonDecode(action.payload);
 
     try {
-      // In actual implementation, this calls DioClient and posts to Spring Boot REST backend
-      // e.g. DioClient.instance.post(url, data: data)
+      final dio = DioClient.instance.dio;
+
       switch (action.actionType) {
+        case 'CREATE_PROJECT':
+          if (kDebugMode) {
+            print('[SyncService] Syncing: Create project ${data["name"]}');
+          }
+          await dio.post(
+            '/projects',
+            data: {
+              'id': data['id'],
+              'name': data['name'],
+              'description': data['description'],
+            },
+          );
+          return true;
+
         case 'CREATE_TASK':
           if (kDebugMode) {
-            print(
-              '[SyncService] REST Mock Post: Creating task: ${data["title"]}',
-            );
+            print('[SyncService] Syncing: Create task ${data["title"]}');
           }
-          // Mock Network delay
-          await Future.delayed(const Duration(seconds: 1));
+          await dio.post(
+            '/projects/${data["projectId"]}/tasks',
+            data: {
+              'id': data['id'],
+              'title': data['title'],
+              'description': data['description'],
+              'priority': data['priority'],
+              'assignedTo': data['assignedTo'],
+              'dueDate': data['dueDate'],
+            },
+          );
           return true;
 
         case 'UPDATE_TASK':
           if (kDebugMode) {
-            print('[SyncService] REST Mock Put: Updating task: ${data["id"]}');
+            print('[SyncService] Syncing: Update task ${data["id"]}');
           }
-          await Future.delayed(const Duration(seconds: 1));
-          return true;
+          String? uid;
+          try {
+            if (Firebase.apps.isNotEmpty) {
+              uid = fb.FirebaseAuth.instance.currentUser?.uid;
+            }
+          } catch (_) {}
 
-        case 'CREATE_PROJECT':
-          if (kDebugMode) {
-            print(
-              '[SyncService] REST Mock Post: Creating project: ${data["name"]}',
+          User? caller;
+          if (uid != null) {
+            caller = await _dbHelper.getCachedUser(uid);
+          }
+          final isManager = caller?.isManager ?? true;
+
+          if (isManager) {
+            await dio.put(
+              '/tasks/${data["id"]}',
+              data: {
+                'title': data['title'],
+                'description': data['description'],
+                'priority': data['priority'],
+                'status': data['status'],
+                'assignedTo': data['assignedTo'],
+                'dueDate': data['dueDate'],
+              },
+            );
+          } else {
+            await dio.patch(
+              '/tasks/${data["id"]}/status',
+              data: {'status': data['status']},
             );
           }
-          await Future.delayed(const Duration(seconds: 1));
+          return true;
+
+        case 'DELETE_TASK':
+          if (kDebugMode) {
+            print('[SyncService] Syncing: Delete task ${data["task_id"]}');
+          }
+          await dio.delete('/tasks/${data["task_id"]}');
           return true;
 
         case 'ADD_PROJECT_MEMBER':
           if (kDebugMode) {
             print(
-              '[SyncService] REST Mock Post: Adding ${data["user_email"]} '
+              '[SyncService] Syncing: Add member ${data["email"]} '
               'to project ${data["project_id"]}',
             );
           }
-          await Future.delayed(const Duration(seconds: 1));
+          await dio.post(
+            '/projects/${data["project_id"]}/members',
+            data: {'email': data['email']},
+          );
           return true;
 
         case 'REMOVE_PROJECT_MEMBER':
           if (kDebugMode) {
             print(
-              '[SyncService] REST Mock Delete: Removing ${data["user_id"]} '
+              '[SyncService] Syncing: Remove member ${data["user_id"]} '
               'from project ${data["project_id"]}',
             );
           }
-          await Future.delayed(const Duration(seconds: 1));
+          await dio.delete(
+            '/projects/${data["project_id"]}/members/${data["user_id"]}',
+          );
           return true;
 
         default:

@@ -9,12 +9,13 @@ class ManagerDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authViewModelProvider).user;
-    final projects = ref.watch(projectViewModelProvider).projects;
-    final tasks = ref.watch(taskViewModelProvider).tasks;
+    final statsState = ref.watch(statisticsViewModelProvider);
+    final stats = statsState.stats;
 
-    final projectCount = projects.length;
-    final totalTasksCount = tasks.length;
-    final completedTasksCount = tasks.where((t) => t.status == 'DONE').length;
+    final projectCount = stats?.totalProjects ?? 0;
+    final totalTasksCount = stats?.totalTasks ?? 0;
+    final completedTasksCount = stats?.completedTasks ?? 0;
+    final completionRate = stats?.overallCompletionRate ?? 0;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pState = ref.read(projectViewModelProvider);
@@ -25,11 +26,19 @@ class ManagerDashboardScreen extends ConsumerWidget {
       if (tState.tasks.isEmpty && !tState.isLoadingTasks && tState.errorMessage == null) {
         ref.read(taskViewModelProvider.notifier).loadTasks();
       }
+      final sState = ref.read(statisticsViewModelProvider);
+      if (sState.stats == null && !sState.isLoading && sState.errorMessage == null) {
+        ref.read(statisticsViewModelProvider.notifier).loadDashboardStats();
+      }
     });
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text('Smart Task Dashboard'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none_outlined),
@@ -41,6 +50,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
         onRefresh: () async {
           await ref.read(projectViewModelProvider.notifier).loadProjects();
           await ref.read(taskViewModelProvider.notifier).loadTasks();
+          await ref.read(statisticsViewModelProvider.notifier).loadDashboardStats();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -50,9 +60,10 @@ class ManagerDashboardScreen extends ConsumerWidget {
             children: [
               Text(
                 'Good morning, ${user?.name ?? "Manager"}!',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
               ),
               const SizedBox(height: 16),
+              // ─── Simple Metric Grid ───
               Row(
                 children: [
                   Expanded(
@@ -60,7 +71,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                       context,
                       'Total Projects',
                       projectCount.toString(),
-                      Icons.folder,
+                      Icons.folder_outlined,
                       Colors.blue,
                       '/projects',
                     ),
@@ -71,7 +82,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                       context,
                       'Total Tasks',
                       totalTasksCount.toString(),
-                      Icons.assignment,
+                      Icons.assignment_outlined,
                       Colors.amber,
                       '/tasks',
                     ),
@@ -86,7 +97,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                       context,
                       'Completed Tasks',
                       completedTasksCount.toString(),
-                      Icons.check_circle,
+                      Icons.check_circle_outline,
                       Colors.green,
                       '/tasks',
                     ),
@@ -94,16 +105,64 @@ class ManagerDashboardScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 24),
+              // ─── Completion Rate Progress Card ───
+              if (stats != null && totalTasksCount > 0) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Total Progress Tracker',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: completionRate / 100,
+                                backgroundColor: const Color(0xFFF1F5F9),
+                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                                minHeight: 8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '$completionRate%',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Progress Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                   ),
                   TextButton(
                     onPressed: () => context.push('/stats'),
-                    child: const Text('View Charts'),
+                    child: const Text('View Charts', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),

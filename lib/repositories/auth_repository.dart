@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -45,22 +47,37 @@ class AuthRepository {
     try {
       final fbAuth = _firebaseAuth;
       if (fbAuth != null) {
-        // 1. Try Firebase Auth
+        // 1. Try Firebase Auth client-side login
         final userCredential = await fbAuth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
         final fbUser = userCredential.user;
         if (fbUser != null) {
-          final user = await _resolveAndCacheProfile(
-            fbUser.uid,
-            email,
-            fbUser.displayName ?? email.split('@').first,
-          );
-          
+          final token = await fbUser.getIdToken() ?? fbUser.uid;
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.authTokenKey, fbUser.uid);
+          await prefs.setString(AppConstants.authTokenKey, token);
+
+          // Get PostgreSQL database profile (including role) using NestJS /users/me
+          User? user;
+          try {
+            final response = await _dioClient.dio.get(
+              '/users/me',
+              options: Options(headers: {'Authorization': 'Bearer $token'}),
+            );
+            final userData = response.data['data'] as Map<String, dynamic>;
+            user = User.fromJson(userData);
+          } catch (apiError) {
+            // Fallback locally using SQLite cached profile
+            user = await _resolveAndCacheProfile(
+              fbUser.uid,
+              email,
+              fbUser.displayName ?? email.split('@').first,
+            );
+          }
+          
           await prefs.setString('logged_user_id', user.id);
+          await _dbHelper.cacheUser(user);
           return user;
         }
       }
@@ -72,10 +89,9 @@ class AuthRepository {
           'password': password,
         });
         
-        final token = response.data['token'] as String? ?? 'mock_token';
-        final jsonUser = response.data['user'] as Map<String, dynamic>;
+        final jsonUser = response.data['data'] as Map<String, dynamic>;
+        final token = response.data['token'] as String? ?? jsonUser['id'] as String;
         
-        // Resolve profile locally using SQLite profile data
         final resolvedUser = await _resolveAndCacheProfile(
           jsonUser['id'] as String,
           jsonUser['email'] as String,
@@ -87,8 +103,7 @@ class AuthRepository {
         await prefs.setString('logged_user_id', resolvedUser.id);
         return resolvedUser;
       } catch (apiError) {
-        // If API fails (e.g. offline), let's fallback to Mocking for MVP
-        // Mock Success Response for MVP if credentials are valid format
+        // Fallback to Mocking if offline
         if (email.contains('@') && password.length >= 6) {
           final mockId = 'usr_${email.hashCode.abs().toString().substring(0, 4)}';
           final resolvedUser = await _resolveAndCacheProfile(
@@ -106,7 +121,6 @@ class AuthRepository {
         }
       }
     } catch (e) {
-      // Fallback: If offline and error, check if matching user exists in local database
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('logged_user_id');
       if (userId != null) {
@@ -121,44 +135,32 @@ class AuthRepository {
 
   Future<User?> register(String name, String email, String password) async {
     try {
-      final fbAuth = _firebaseAuth;
-      if (fbAuth != null) {
-        // 1. Try Firebase Auth
-        final userCredential = await fbAuth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-        final fbUser = userCredential.user;
-        if (fbUser != null) {
-          await fbUser.updateDisplayName(name);
-          final user = User(
-            id: fbUser.uid,
-            name: name,
-            email: email,
-            role: UserRole.member, // STRICTLY member
-            createdAt: DateTime.now(),
-          );
-          
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.authTokenKey, fbUser.uid);
-          await prefs.setString('logged_user_id', user.id);
-          await _dbHelper.cacheUser(user);
-          return user;
-        }
-      }
-
-      // 2. Try REST API endpoint
+      // Register through NestJS Auth API first
       try {
         final response = await _dioClient.dio.post('/auth/register', data: {
           'name': name,
           'email': email,
           'password': password,
-          'role': UserRole.member, // STRICTLY member
+          'role': UserRole.member,
         });
         
-        final token = response.data['token'] as String? ?? 'mock_token';
-        final user = User.fromJson(response.data['user'] as Map<String, dynamic>).copyWith(
-          role: UserRole.member, // Force role to member
+        final jsonUser = response.data['data'] as Map<String, dynamic>;
+        
+        // Log in to Firebase Auth locally to get authentication state and Token
+        final fbAuth = _firebaseAuth;
+        String token = jsonUser['id'] as String;
+        if (fbAuth != null) {
+          try {
+            final userCredential = await fbAuth.signInWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+            token = await userCredential.user?.getIdToken() ?? token;
+          } catch (_) {}
+        }
+
+        final user = User.fromJson(jsonUser).copyWith(
+          role: UserRole.member,
         );
         
         final prefs = await SharedPreferences.getInstance();
@@ -167,13 +169,38 @@ class AuthRepository {
         await _dbHelper.cacheUser(user);
         return user;
       } catch (apiError) {
-        // Fallback to offline / mock registration
+        // Mock fallback if API fails
+        final fbAuth = _firebaseAuth;
+        if (fbAuth != null) {
+          final userCredential = await fbAuth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          final fbUser = userCredential.user;
+          if (fbUser != null) {
+            await fbUser.updateDisplayName(name);
+            final user = User(
+              id: fbUser.uid,
+              name: name,
+              email: email,
+              role: UserRole.member,
+              createdAt: DateTime.now(),
+            );
+            
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(AppConstants.authTokenKey, fbUser.uid);
+            await prefs.setString('logged_user_id', user.id);
+            await _dbHelper.cacheUser(user);
+            return user;
+          }
+        }
+
         final mockId = 'usr_${email.hashCode.abs().toString().substring(0, 4)}';
         final user = User(
           id: mockId,
           name: name,
           email: email,
-          role: UserRole.member, // STRICTLY member
+          role: UserRole.member,
           createdAt: DateTime.now(),
         );
 
@@ -188,27 +215,58 @@ class AuthRepository {
     }
   }
 
-  Future<void> resetPassword(String email) async {
-    final fbAuth = _firebaseAuth;
+  String? _currentMockOtp;
 
-    if (fbAuth != null) {
-      // Firebase is initialized — send real reset email.
-      // Let any FirebaseAuthException bubble up so the UI can show the real error
-      // (e.g. "user not found", "invalid email", etc.).
-      await fbAuth.sendPasswordResetEmail(email: email);
-      return;
-    }
-
-    // Firebase not configured — try the REST API instead.
+  Future<void> sendOtp(String email) async {
     try {
-      await _dioClient.dio.post('/auth/reset-password', data: {'email': email});
-      return;
+      await _dioClient.dio.post('/auth/send-otp', data: {'email': email});
+      await _dbHelper.logOtpRequest(email);
     } catch (apiError) {
-      // API also unavailable (offline / not deployed).
-      // In a real app you would throw here; for MVP we log and return a mock success
-      // so the UX is not blocked during development without a backend.
-      debugPrint('[AuthRepository] resetPassword: Firebase not configured and API '
-          'unreachable. Running in mock mode — no email was actually sent. Error: $apiError');
+      // Mock mode fallback
+      final random = Random();
+      final otp = (100000 + random.nextInt(900000)).toString();
+      _currentMockOtp = otp;
+      debugPrint('[AuthRepository] Mock OTP for $email: $otp (Logged for manual testing)');
+      await _dbHelper.logOtpRequest(email);
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  Future<bool> verifyOtp(String email, String otp) async {
+    try {
+      final response = await _dioClient.dio.post('/auth/verify-otp', data: {
+        'email': email,
+        'otp': otp,
+      });
+      final isValid = response.data['valid'] as bool? ?? false;
+      if (isValid) {
+        await _dbHelper.logOtpVerification(email);
+      }
+      return isValid;
+    } catch (apiError) {
+      if (_currentMockOtp != null && otp == _currentMockOtp) {
+        await _dbHelper.logOtpVerification(email);
+        return true;
+      }
+      return false;
+    }
+  }
+
+  Future<void> resetPassword(String email, String otp, String newPassword) async {
+    try {
+      await _dioClient.dio.post('/auth/reset-password', data: {
+        'email': email,
+        'otp': otp,
+        'newPassword': newPassword,
+      });
+      await _dbHelper.logPasswordResetCompleted(email);
+    } catch (apiError) {
+      if (_currentMockOtp == null || otp != _currentMockOtp) {
+        throw Exception('Invalid OTP. Reset password failed.');
+      }
+      
+      debugPrint('[AuthRepository] Mock Password Reset completed for $email');
+      await _dbHelper.logPasswordResetCompleted(email);
       await Future.delayed(const Duration(milliseconds: 500));
     }
   }

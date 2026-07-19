@@ -79,17 +79,7 @@ class AuthViewModel extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> forgotPassword(String email) async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      await _authRepository.resetPassword(email);
-      state = state.copyWith(isLoading: false);
-      return true;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: e.toString().replaceAll('Exception: ', ''));
-      return false;
-    }
-  }
+
 
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
