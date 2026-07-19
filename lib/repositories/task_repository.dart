@@ -6,8 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../core/database/db_helper.dart';
 import '../core/network/dio_client.dart';
 import '../core/security/permission_service.dart';
-import '../models/task.dart';
 import '../models/pending_action.dart';
+import '../models/task.dart';
 
 class TaskRepository {
   TaskRepository({DbHelper? dbHelper, Dio? dio, Uuid? uuid})
@@ -19,36 +19,33 @@ class TaskRepository {
   final Dio _dio;
   final Uuid _uuid;
 
+  // ─── Helper: unwrap NestJS { success, data } envelope ────────────────────
+  dynamic _unwrap(dynamic responseData) {
+    if (responseData is Map && responseData.containsKey('data')) {
+      return responseData['data'];
+    }
+    return responseData;
+  }
+
+  // ─── GET /projects/:projectId/tasks ───────────────────────────────────────
   Future<List<Task>> getTasks({
     String? projectId,
     String? search,
     String? status,
     required bool isOnline,
   }) async {
-    if (isOnline) {
+    if (isOnline && projectId != null) {
       try {
-        final response = await _dio.get(
-          '/tasks',
-          queryParameters: {
-            if (projectId != null && projectId.isNotEmpty)
-              'project_id': projectId,
-            if (search != null && search.trim().isNotEmpty)
-              'search': search.trim(),
-            if (status != null && status.isNotEmpty) 'status': status,
-          },
-        );
-        if (response.data is! List) {
-          throw const FormatException('Invalid tasks response.');
-        }
-        final tasks = (response.data as List)
+        final response = await _dio.get('/projects/$projectId/tasks');
+        final raw = _unwrap(response.data);
+        if (raw is! List) throw const FormatException('Invalid tasks response.');
+        final tasks = (raw)
             .whereType<Map>()
             .map((json) => Task.fromJson(Map<String, dynamic>.from(json)))
             .toList();
         await _dbHelper.cacheTasks(tasks);
-        return tasks;
-      } catch (_) {
-        // Fall back to SQLite when the API is unavailable.
-      }
+        return _filterTasks(tasks, search: search, status: status);
+      } catch (_) {}
     }
 
     var tasks = await _dbHelper.getCachedTasks(projectId: projectId);
@@ -59,28 +56,42 @@ class TaskRepository {
     return _filterTasks(tasks, search: search, status: status);
   }
 
+  // ─── GET /tasks/my ────────────────────────────────────────────────────────
+  Future<List<Task>> getMyTasks({required bool isOnline}) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get('/tasks/my');
+        final raw = _unwrap(response.data);
+        if (raw is! List) throw const FormatException('Invalid my-tasks response.');
+        final tasks = (raw)
+            .whereType<Map>()
+            .map((json) => Task.fromJson(Map<String, dynamic>.from(json)))
+            .toList();
+        await _dbHelper.cacheTasks(tasks);
+        return tasks;
+      } catch (_) {}
+    }
+    return _dbHelper.getCachedTasks();
+  }
+
+  // ─── GET /tasks/:id ───────────────────────────────────────────────────────
   Future<Task> getTask(String taskId, {required bool isOnline}) async {
     if (isOnline) {
       try {
         final response = await _dio.get('/tasks/$taskId');
-        if (response.data is! Map) {
-          throw const FormatException('Invalid task detail response.');
-        }
-        final task = Task.fromJson(
-          Map<String, dynamic>.from(response.data as Map),
-        );
+        final raw = _unwrap(response.data);
+        if (raw is! Map) throw const FormatException('Invalid task detail response.');
+        final task = Task.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheTasks([task]);
         return task;
-      } catch (_) {
-        // Fall back to SQLite when the API is unavailable.
-      }
+      } catch (_) {}
     }
-
     final task = await _dbHelper.getCachedTask(taskId);
     if (task == null) throw const TaskException('Task not found.');
     return task;
   }
 
+  // ─── POST /projects/:projectId/tasks ──────────────────────────────────────
   Future<Task> createTask({
     required String projectId,
     required String title,
@@ -109,19 +120,21 @@ class TaskRepository {
     if (isOnline) {
       try {
         final response = await _dio.post(
-          '/tasks',
-          data: _createPayload(newTask),
+          '/projects/$projectId/tasks',
+          data: {
+            'title': newTask.title,
+            'description': newTask.description,
+            'priority': newTask.priority,
+            'assignedTo': assignedTo,
+            'dueDate': dueDate?.toUtc().toIso8601String(),
+          },
         );
-        final data = response.data;
-        if (data is! Map) {
-          throw const FormatException('Invalid create task response.');
-        }
-        final created = Task.fromJson(Map<String, dynamic>.from(data));
+        final raw = _unwrap(response.data);
+        if (raw is! Map) throw const FormatException('Invalid create task response.');
+        final created = Task.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheTasks([created]);
         return created;
-      } catch (_) {
-        // Save locally and queue below.
-      }
+      } catch (_) {}
     }
 
     await _dbHelper.cacheTasks([newTask]);
@@ -129,6 +142,7 @@ class TaskRepository {
     return newTask;
   }
 
+  // ─── PUT /tasks/:id ───────────────────────────────────────────────────────
   Future<Task> updateTask({
     required Task task,
     required bool isOnline,
@@ -136,47 +150,58 @@ class TaskRepository {
   }) async {
     final caller = await _dbHelper.getCachedUser(currentUserId);
     if (caller == null) {
-      throw const TaskException('Permission Denied: Logged-in user not found.');
+      throw const TaskException('Permission Denied: user not found.');
     }
 
-    final existingTask = await _dbHelper.getCachedTask(task.id);
-    if (existingTask == null) {
-      throw const TaskException('Task not found.');
-    }
+    final existing = await _dbHelper.getCachedTask(task.id);
+    if (existing == null) throw const TaskException('Task not found.');
 
     if (!caller.isManager) {
-      // Members are allowed to update ONLY their own task status.
-      if (existingTask.assignedTo != caller.id) {
-        throw const TaskException('Permission Denied: You are not assigned to this task.');
+      if (existing.assignedTo != caller.id) {
+        throw const TaskException('Permission Denied: you are not assigned to this task.');
       }
-      
-      // Check if anything other than status was changed
-      if (task.title != existingTask.title ||
-          task.description != existingTask.description ||
-          task.priority != existingTask.priority ||
-          task.assignedTo != existingTask.assignedTo ||
-          task.dueDate != existingTask.dueDate ||
-          task.projectId != existingTask.projectId) {
-        throw const TaskException('Permission Denied: Members can only update task status.');
+      if (task.title != existing.title ||
+          task.description != existing.description ||
+          task.priority != existing.priority ||
+          task.assignedTo != existing.assignedTo ||
+          task.dueDate != existing.dueDate) {
+        throw const TaskException('Permission Denied: members can only update task status.');
       }
     }
 
     if (isOnline) {
       try {
-        final response = await _dio.put(
-          '/tasks/${task.id}',
-          data: _updatePayload(task),
-        );
-        final data = response.data;
-        if (data is! Map) {
-          throw const FormatException('Invalid update task response.');
+        if (caller.isManager) {
+          // Full update via PUT /tasks/:id
+          final response = await _dio.put(
+            '/tasks/${task.id}',
+            data: {
+              'title': task.title,
+              'description': task.description,
+              'priority': task.priority,
+              'status': task.status,
+              'assignedTo': task.assignedTo,
+              'dueDate': task.dueDate?.toUtc().toIso8601String(),
+            },
+          );
+          final raw = _unwrap(response.data);
+          if (raw is! Map) throw const FormatException('Invalid update task response.');
+          final updated = Task.fromJson(Map<String, dynamic>.from(raw));
+          await _dbHelper.cacheTasks([updated]);
+          return updated;
+        } else {
+          // Member status-only update via PATCH /tasks/:id/status
+          final response = await _dio.patch(
+            '/tasks/${task.id}/status',
+            data: {'status': task.status},
+          );
+          final raw = _unwrap(response.data);
+          if (raw is! Map) throw const FormatException('Invalid status update response.');
+          final updated = Task.fromJson(Map<String, dynamic>.from(raw));
+          await _dbHelper.cacheTasks([updated]);
+          return updated;
         }
-        final updated = Task.fromJson(Map<String, dynamic>.from(data));
-        await _dbHelper.cacheTasks([updated]);
-        return updated;
-      } catch (_) {
-        // Save locally and queue below.
-      }
+      } catch (_) {}
     }
 
     await _dbHelper.cacheTasks([task]);
@@ -184,11 +209,32 @@ class TaskRepository {
     return task;
   }
 
+  // ─── DELETE /tasks/:id ────────────────────────────────────────────────────
+  Future<void> deleteTask({
+    required String taskId,
+    required bool isOnline,
+    required String currentUserId,
+  }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'delete tasks');
+
+    if (isOnline) {
+      try {
+        await _dio.delete('/tasks/$taskId');
+        await _dbHelper.deleteTask(taskId);
+        return;
+      } catch (_) {}
+    }
+
+    await _dbHelper.deleteTask(taskId);
+    await _enqueueAction('DELETE_TASK', {'task_id': taskId});
+  }
+
+  // ─── Private helpers ──────────────────────────────────────────────────────
   List<Task> _filterTasks(List<Task> tasks, {String? search, String? status}) {
     final query = search?.trim().toLowerCase() ?? '';
     return tasks.where((task) {
-      final matchesSearch =
-          query.isEmpty ||
+      final matchesSearch = query.isEmpty ||
           task.title.toLowerCase().contains(query) ||
           task.description.toLowerCase().contains(query);
       final matchesStatus =
@@ -197,25 +243,10 @@ class TaskRepository {
     }).toList();
   }
 
-  Map<String, dynamic> _createPayload(Task task) => {
-    'project_id': task.projectId,
-    'title': task.title,
-    'description': task.description,
-    'priority': task.priority,
-    'assigned_to': task.assignedTo,
-    'due_date': task.dueDate?.toUtc().toIso8601String(),
-  };
-
-  Map<String, dynamic> _updatePayload(Task task) => {
-    'title': task.title,
-    'description': task.description,
-    'priority': task.priority,
-    'status': task.status,
-    'assigned_to': task.assignedTo,
-    'due_date': task.dueDate?.toUtc().toIso8601String(),
-  };
-
-  Future<void> _enqueueAction(String actionType, Map<String, dynamic> payload) {
+  Future<void> _enqueueAction(
+    String actionType,
+    Map<String, dynamic> payload,
+  ) {
     return _dbHelper.enqueueAction(
       PendingAction(
         id: _uuid.v4(),
@@ -268,9 +299,7 @@ class TaskRepository {
 
 class TaskException implements Exception {
   const TaskException(this.message);
-
   final String message;
-
   @override
   String toString() => message;
 }

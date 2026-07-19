@@ -29,10 +29,26 @@ class DbHelper {
       version: _dbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        await _createHistoryTable(db);
+      },
     );
   }
 
+  Future<void> _createHistoryTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS forgot_password_history (
+        email TEXT,
+        requested_at TEXT NOT NULL,
+        verified_at TEXT,
+        reset_completed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (email, requested_at)
+      )
+    ''');
+  }
+
   Future<void> _onCreate(Database db, int version) async {
+    await _createHistoryTable(db);
     // 1. users table
     await db.execute('''
       CREATE TABLE users (
@@ -376,6 +392,9 @@ class DbHelper {
     );
   }
 
+  // Alias for external use by repositories
+  Future<void> deleteTask(String taskId) => deleteCachedTask(taskId);
+
   // Notifications Cache
   Future<void> cacheNotifications(List<AppNotification> notifications) async {
     final db = await database;
@@ -418,5 +437,54 @@ class DbHelper {
   Future<void> dequeueAction(String actionId) async {
     final db = await database;
     await db.delete('pending_actions', where: 'id = ?', whereArgs: [actionId]);
+  }
+
+  // --- Forgot Password Cache History ---
+  Future<void> logOtpRequest(String email) async {
+    final db = await database;
+    await db.insert('forgot_password_history', {
+      'email': email,
+      'requested_at': DateTime.now().toIso8601String(),
+      'verified_at': null,
+      'reset_completed': 0,
+    });
+  }
+
+  Future<void> logOtpVerification(String email) async {
+    final db = await database;
+    final List<Map<String, dynamic>> requests = await db.query(
+      'forgot_password_history',
+      where: "email = ? AND verified_at IS NULL AND reset_completed = 0",
+      orderBy: 'requested_at DESC',
+      limit: 1,
+    );
+    if (requests.isNotEmpty) {
+      final latestRequest = requests.first;
+      await db.update(
+        'forgot_password_history',
+        {'verified_at': DateTime.now().toIso8601String()},
+        where: 'email = ? AND requested_at = ?',
+        whereArgs: [latestRequest['email'], latestRequest['requested_at']],
+      );
+    }
+  }
+
+  Future<void> logPasswordResetCompleted(String email) async {
+    final db = await database;
+    final List<Map<String, dynamic>> requests = await db.query(
+      'forgot_password_history',
+      where: "email = ? AND verified_at IS NOT NULL AND reset_completed = 0",
+      orderBy: 'requested_at DESC',
+      limit: 1,
+    );
+    if (requests.isNotEmpty) {
+      final latestRequest = requests.first;
+      await db.update(
+        'forgot_password_history',
+        {'reset_completed': 1},
+        where: 'email = ? AND requested_at = ?',
+        whereArgs: [latestRequest['email'], latestRequest['requested_at']],
+      );
+    }
   }
 }

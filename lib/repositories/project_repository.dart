@@ -19,36 +19,40 @@ class ProjectRepository {
   final Dio _dio;
   final Uuid _uuid;
 
+  // ─── Helper: unwrap NestJS { success, data } envelope ────────────────────
+  dynamic _unwrap(dynamic responseData) {
+    if (responseData is Map && responseData.containsKey('data')) {
+      return responseData['data'];
+    }
+    return responseData;
+  }
+
+  // ─── GET /projects ────────────────────────────────────────────────────────
   Future<List<Project>> getProjects({required bool isOnline}) async {
     if (isOnline) {
       try {
         final response = await _dio.get('/projects');
-        final data = response.data;
-        if (data is! List) {
-          throw const FormatException('Invalid projects response.');
-        }
-
-        final projects = data
+        final raw = _unwrap(response.data);
+        if (raw is! List) throw const FormatException('Invalid projects response.');
+        final projects = raw
             .whereType<Map>()
             .map((item) => Project.fromJson(Map<String, dynamic>.from(item)))
             .toList();
         await _dbHelper.cacheProjects(projects);
         return projects;
       } catch (_) {
-        // Read the local cache below when the API is unavailable.
+        // Fall back to cache below.
       }
     }
-
-    final cachedProjects = await _dbHelper.getCachedProjects();
-    if (cachedProjects.isNotEmpty) return cachedProjects;
-
-    // Keep the MVP usable on its first offline launch.
-    final demoProject = _buildDemoProject();
-    await _dbHelper.cacheProjects([demoProject]);
-    await _dbHelper.cacheProjectMembers(demoProject.id, _buildDemoMembers());
-    return [demoProject];
+    final cached = await _dbHelper.getCachedProjects();
+    if (cached.isNotEmpty) return cached;
+    final demo = _buildDemoProject();
+    await _dbHelper.cacheProjects([demo]);
+    await _dbHelper.cacheProjectMembers(demo.id, _buildDemoMembers());
+    return [demo];
   }
 
+  // ─── GET /projects/:id ────────────────────────────────────────────────────
   Future<ProjectDetails> getProjectDetails(
     String projectId, {
     required bool isOnline,
@@ -56,13 +60,12 @@ class ProjectRepository {
     if (isOnline) {
       try {
         return await _getProjectDetailsFromApi(projectId);
-      } catch (_) {
-        // Read the local cache below when the API is unavailable.
-      }
+      } catch (_) {}
     }
     return _getCachedProjectDetails(projectId);
   }
 
+  // ─── POST /projects ───────────────────────────────────────────────────────
   Future<Project> createProject({
     required String name,
     required String description,
@@ -78,17 +81,12 @@ class ProjectRepository {
           '/projects',
           data: {'name': name.trim(), 'description': description.trim()},
         );
-        final data = response.data;
-        if (data is! Map) {
-          throw const FormatException('Invalid create project response.');
-        }
-
-        final project = Project.fromJson(Map<String, dynamic>.from(data));
+        final raw = _unwrap(response.data);
+        if (raw is! Map) throw const FormatException('Invalid create project response.');
+        final project = Project.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheProjects([project]);
         return project;
-      } catch (_) {
-        // The request could not be completed. Save it locally below.
-      }
+      } catch (_) {}
     }
 
     final project = Project(
@@ -103,6 +101,7 @@ class ProjectRepository {
     return project;
   }
 
+  // ─── POST /projects/:id/members ───────────────────────────────────────────
   Future<ProjectDetails> addMember({
     required String projectId,
     required String email,
@@ -112,34 +111,28 @@ class ProjectRepository {
     final caller = await _dbHelper.getCachedUser(currentUserId);
     PermissionService.requireManager(caller, action: 'add members');
 
-    final normalizedEmail = email.trim().toLowerCase();
-
     if (isOnline) {
       try {
         await _dio.post(
-          '/projects/add-member',
-          data: {'project_id': projectId, 'user_email': normalizedEmail},
+          '/projects/$projectId/members',
+          data: {'email': email},
         );
-
-        // Refreshing retrieves the canonical user id and display name.
         try {
           return await _getProjectDetailsFromApi(projectId);
         } catch (_) {
-          return _addMemberToCache(projectId, normalizedEmail);
+          return _getCachedProjectDetails(projectId);
         }
-      } catch (_) {
-        // Queue the mutation below when the API is unavailable.
-      }
+      } catch (_) {}
     }
 
-    final details = await _addMemberToCache(projectId, normalizedEmail);
     await _enqueueAction('ADD_PROJECT_MEMBER', {
       'project_id': projectId,
-      'user_email': normalizedEmail,
+      'email': email,
     });
-    return details;
+    return _getCachedProjectDetails(projectId);
   }
 
+  // ─── DELETE /projects/:id/members/:userId ─────────────────────────────────
   Future<ProjectDetails> removeMember({
     required String projectId,
     required String userId,
@@ -156,41 +149,71 @@ class ProjectRepository {
 
     if (isOnline) {
       try {
-        await _dio.delete(
-          '/projects/remove-member',
-          data: {'project_id': projectId, 'user_id': userId},
-        );
+        await _dio.delete('/projects/$projectId/members/$userId');
         return _removeMemberFromCache(details, userId);
-      } catch (_) {
-        // Queue the mutation below when the API is unavailable.
-      }
+      } catch (_) {}
     }
 
-    final updatedDetails = await _removeMemberFromCache(details, userId);
+    final updated = await _removeMemberFromCache(details, userId);
     await _enqueueAction('REMOVE_PROJECT_MEMBER', {
       'project_id': projectId,
       'user_id': userId,
     });
-    return updatedDetails;
+    return updated;
   }
 
-  Future<ProjectDetails> _getProjectDetailsFromApi(String projectId) async {
-    final response = await _dio.get('/projects/$projectId');
-    final data = response.data;
-    if (data is! Map) {
-      throw const FormatException('Invalid project detail response.');
+  // ─── PUT /projects/:id ────────────────────────────────────────────────────
+  Future<Project> updateProject({
+    required String projectId,
+    required String name,
+    required String description,
+    required bool isOnline,
+    required String currentUserId,
+  }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'update projects');
+
+    if (isOnline) {
+      try {
+        final response = await _dio.put(
+          '/projects/$projectId',
+          data: {'name': name.trim(), 'description': description.trim()},
+        );
+        final raw = _unwrap(response.data);
+        if (raw is! Map) throw const FormatException('Invalid update project response.');
+        final project = Project.fromJson(Map<String, dynamic>.from(raw));
+        await _dbHelper.cacheProjects([project]);
+        return project;
+      } catch (_) {}
     }
 
-    final details = ProjectDetails.fromJson(Map<String, dynamic>.from(data));
+    final cached = await _dbHelper.getCachedProject(projectId);
+    if (cached == null) throw const ProjectException('Project not found.');
+    final updated = Project(
+      id: cached.id,
+      name: name.trim(),
+      description: description.trim(),
+      ownerId: cached.ownerId,
+      createdAt: cached.createdAt,
+    );
+    await _dbHelper.cacheProjects([updated]);
+    await _enqueueAction('UPDATE_PROJECT', updated.toJson());
+    return updated;
+  }
+
+  // ─── Private helpers ──────────────────────────────────────────────────────
+  Future<ProjectDetails> _getProjectDetailsFromApi(String projectId) async {
+    final response = await _dio.get('/projects/$projectId');
+    final raw = _unwrap(response.data);
+    if (raw is! Map) throw const FormatException('Invalid project detail response.');
+    final details = ProjectDetails.fromJson(Map<String, dynamic>.from(raw));
     await _cacheProjectDetails(details);
     return details;
   }
 
   Future<ProjectDetails> _getCachedProjectDetails(String projectId) async {
     final project = await _dbHelper.getCachedProject(projectId);
-    if (project == null) {
-      throw const ProjectException('Project not found.');
-    }
+    if (project == null) throw const ProjectException('Project not found.');
     final members = await _dbHelper.getCachedProjectMembers(projectId);
     return ProjectDetails(project: project, members: members);
   }
@@ -200,35 +223,13 @@ class ProjectRepository {
     await _dbHelper.cacheProjectMembers(details.project.id, details.members);
   }
 
-  Future<ProjectDetails> _addMemberToCache(
-    String projectId,
-    String email,
-  ) async {
-    final details = await _getCachedProjectDetails(projectId);
-    final alreadyExists = details.members.any(
-      (member) => member.email.toLowerCase() == email,
-    );
-    if (alreadyExists) {
-      throw const ProjectException('This user is already a project member.');
-    }
-
-    final member = ProjectMember(
-      id: _uuid.v4(),
-      name: _displayNameFromEmail(email),
-      email: email,
-      role: 'Member',
-    );
-    await _dbHelper.addCachedProjectMember(projectId, member);
-    return details.copyWith(members: [...details.members, member]);
-  }
-
   Future<ProjectDetails> _removeMemberFromCache(
     ProjectDetails details,
     String userId,
   ) async {
     await _dbHelper.removeCachedProjectMember(details.project.id, userId);
     return details.copyWith(
-      members: details.members.where((member) => member.id != userId).toList(),
+      members: details.members.where((m) => m.id != userId).toList(),
     );
   }
 
@@ -246,48 +247,23 @@ class ProjectRepository {
     );
   }
 
-  Project _buildDemoProject() {
-    return Project(
-      id: 'proj_01',
-      name: 'Smart Task App',
-      description: 'Flutter MVVM SQLite group project',
-      ownerId: 'usr_7719',
-      createdAt: DateTime.now(),
-    );
-  }
+  Project _buildDemoProject() => Project(
+    id: 'proj_01',
+    name: 'Smart Task App',
+    description: 'Flutter MVVM SQLite group project',
+    ownerId: 'usr_7719',
+    createdAt: DateTime.now(),
+  );
 
-  List<ProjectMember> _buildDemoMembers() {
-    return const [
-      ProjectMember(
-        id: 'usr_7719',
-        name: 'Hoang Team Lead',
-        email: 'manager@example.com',
-        role: 'Manager',
-      ),
-      ProjectMember(
-        id: 'usr_8231',
-        name: 'Nguyen Van B',
-        email: 'member@example.com',
-        role: 'Member',
-      ),
-    ];
-  }
-
-  String _displayNameFromEmail(String email) {
-    final localPart = email.split('@').first.replaceAll(RegExp(r'[._-]+'), ' ');
-    return localPart
-        .split(' ')
-        .where((word) => word.isNotEmpty)
-        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
-        .join(' ');
-  }
+  List<ProjectMember> _buildDemoMembers() => const [
+    ProjectMember(id: 'usr_7719', name: 'Hoang Team Lead', email: 'manager@gmail.com', role: 'Manager'),
+    ProjectMember(id: 'usr_8231', name: 'Nguyen Member', email: 'member@gmail.com', role: 'Member'),
+  ];
 }
 
 class ProjectException implements Exception {
-  final String message;
-
   const ProjectException(this.message);
-
+  final String message;
   @override
   String toString() => message;
 }

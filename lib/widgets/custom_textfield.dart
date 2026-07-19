@@ -10,6 +10,7 @@ class CustomTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final TextInputType keyboardType;
+  final int? maxLength;
 
   const CustomTextField({
     super.key,
@@ -21,6 +22,7 @@ class CustomTextField extends StatelessWidget {
     this.suffixIcon,
     this.validator,
     this.keyboardType = TextInputType.text,
+    this.maxLength,
   });
 
   @override
@@ -44,6 +46,7 @@ class CustomTextField extends StatelessWidget {
           obscureText: obscureText,
           validator: validator,
           keyboardType: keyboardType,
+          maxLength: maxLength,
           style: TextStyle(
             color: isDark ? AppConstants.textDark : AppConstants.textLight,
           ),
