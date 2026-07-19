@@ -33,7 +33,9 @@ class ProjectRepository {
       try {
         final response = await _dio.get('/projects');
         final raw = _unwrap(response.data);
-        if (raw is! List) throw const FormatException('Invalid projects response.');
+        if (raw is! List) {
+          throw const FormatException('Invalid projects response.');
+        }
         final projects = raw
             .whereType<Map>()
             .map((item) => Project.fromJson(Map<String, dynamic>.from(item)))
@@ -60,7 +62,11 @@ class ProjectRepository {
     if (isOnline) {
       try {
         return await _getProjectDetailsFromApi(projectId);
-      } catch (_) {}
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to load project details.');
+        }
+      }
     }
     return _getCachedProjectDetails(projectId);
   }
@@ -82,11 +88,17 @@ class ProjectRepository {
           data: {'name': name.trim(), 'description': description.trim()},
         );
         final raw = _unwrap(response.data);
-        if (raw is! Map) throw const FormatException('Invalid create project response.');
+        if (raw is! Map) {
+          throw const FormatException('Invalid create project response.');
+        }
         final project = Project.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheProjects([project]);
         return project;
-      } catch (_) {}
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to create the project.');
+        }
+      }
     }
 
     final project = Project(
@@ -113,16 +125,17 @@ class ProjectRepository {
 
     if (isOnline) {
       try {
-        await _dio.post(
-          '/projects/$projectId/members',
-          data: {'email': email},
-        );
+        await _dio.post('/projects/$projectId/members', data: {'email': email});
         try {
           return await _getProjectDetailsFromApi(projectId);
         } catch (_) {
           return _getCachedProjectDetails(projectId);
         }
-      } catch (_) {}
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to add this member.');
+        }
+      }
     }
 
     await _enqueueAction('ADD_PROJECT_MEMBER', {
@@ -151,7 +164,11 @@ class ProjectRepository {
       try {
         await _dio.delete('/projects/$projectId/members/$userId');
         return _removeMemberFromCache(details, userId);
-      } catch (_) {}
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to remove this member.');
+        }
+      }
     }
 
     final updated = await _removeMemberFromCache(details, userId);
@@ -180,11 +197,17 @@ class ProjectRepository {
           data: {'name': name.trim(), 'description': description.trim()},
         );
         final raw = _unwrap(response.data);
-        if (raw is! Map) throw const FormatException('Invalid update project response.');
+        if (raw is! Map) {
+          throw const FormatException('Invalid update project response.');
+        }
         final project = Project.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheProjects([project]);
         return project;
-      } catch (_) {}
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to update the project.');
+        }
+      }
     }
 
     final cached = await _dbHelper.getCachedProject(projectId);
@@ -201,11 +224,48 @@ class ProjectRepository {
     return updated;
   }
 
+  Future<void> deleteProject({
+    required String projectId,
+    required bool isOnline,
+    required String currentUserId,
+  }) async {
+    final caller = await _dbHelper.getCachedUser(currentUserId);
+    PermissionService.requireManager(caller, action: 'delete projects');
+
+    final cached = await _dbHelper.getCachedProject(projectId);
+    if (cached == null) {
+      throw const ProjectException('Project not found.');
+    }
+    if (cached.ownerId != currentUserId) {
+      throw const ProjectException(
+        'Only the project owner can delete this project.',
+      );
+    }
+
+    if (isOnline) {
+      try {
+        await _dio.delete('/projects/$projectId');
+        await _dbHelper.deleteCachedProject(projectId);
+        return;
+      } catch (error) {
+        if (!_isConnectionFailure(error)) {
+          throw _apiException(error, 'Unable to delete the project.');
+        }
+        // Keep the local operation in the sync queue below.
+      }
+    }
+
+    await _dbHelper.deleteCachedProject(projectId);
+    await _enqueueAction('DELETE_PROJECT', {'project_id': projectId});
+  }
+
   // ─── Private helpers ──────────────────────────────────────────────────────
   Future<ProjectDetails> _getProjectDetailsFromApi(String projectId) async {
     final response = await _dio.get('/projects/$projectId');
     final raw = _unwrap(response.data);
-    if (raw is! Map) throw const FormatException('Invalid project detail response.');
+    if (raw is! Map) {
+      throw const FormatException('Invalid project detail response.');
+    }
     final details = ProjectDetails.fromJson(Map<String, dynamic>.from(raw));
     await _cacheProjectDetails(details);
     return details;
@@ -247,6 +307,34 @@ class ProjectRepository {
     );
   }
 
+  bool _isConnectionFailure(Object error) {
+    if (error is! DioException) return false;
+    return switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown => true,
+      _ => false,
+    };
+  }
+
+  ProjectException _apiException(Object error, String fallback) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final message = data['message'];
+        if (message != null && message.toString().trim().isNotEmpty) {
+          return ProjectException(message.toString());
+        }
+      }
+      if (error.message?.trim().isNotEmpty == true) {
+        return ProjectException(error.message!.trim());
+      }
+    }
+    return ProjectException(fallback);
+  }
+
   Project _buildDemoProject() => Project(
     id: 'proj_01',
     name: 'Smart Task App',
@@ -256,8 +344,18 @@ class ProjectRepository {
   );
 
   List<ProjectMember> _buildDemoMembers() => const [
-    ProjectMember(id: 'usr_7719', name: 'Hoang Team Lead', email: 'manager@gmail.com', role: 'Manager'),
-    ProjectMember(id: 'usr_8231', name: 'Nguyen Member', email: 'member@gmail.com', role: 'Member'),
+    ProjectMember(
+      id: 'usr_7719',
+      name: 'Hoang Team Lead',
+      email: 'manager@gmail.com',
+      role: 'Manager',
+    ),
+    ProjectMember(
+      id: 'usr_8231',
+      name: 'Nguyen Member',
+      email: 'member@gmail.com',
+      role: 'Member',
+    ),
   ];
 }
 

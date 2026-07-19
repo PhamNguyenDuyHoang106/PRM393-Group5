@@ -96,6 +96,7 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
     required String name,
     required String description,
     required String ownerId,
+    List<String> memberEmails = const [],
   }) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
@@ -105,9 +106,31 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
         ownerId: ownerId,
         isOnline: _connectivityService.isOnline,
       );
+
+      var details = ProjectDetails(project: project);
+      final failedEmails = <String>[];
+      for (final email in memberEmails.toSet()) {
+        try {
+          details = await _repository.addMember(
+            projectId: project.id,
+            email: email,
+            isOnline: _connectivityService.isOnline,
+            currentUserId: ownerId,
+          );
+        } catch (_) {
+          failedEmails.add(email);
+        }
+      }
+
       state = state.copyWith(
         projects: _upsertProject(state.projects, project),
+        details: details,
         isSubmitting: false,
+        errorMessage: failedEmails.isEmpty
+            ? null
+            : 'Project created, but these members could not be added: '
+                  '${failedEmails.join(', ')}',
+        clearError: failedEmails.isEmpty,
       );
       return project;
     } catch (error) {
@@ -178,6 +201,75 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
         currentUserId: currentUser.id,
       );
       state = state.copyWith(details: details, isSubmitting: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFrom(error),
+      );
+      return false;
+    }
+  }
+
+  Future<Project?> updateProject({
+    required String projectId,
+    required String name,
+    required String description,
+  }) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return null;
+    }
+
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      final project = await _repository.updateProject(
+        projectId: projectId,
+        name: name,
+        description: description,
+        isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
+      );
+      final currentDetails = state.details;
+      state = state.copyWith(
+        projects: _upsertProject(state.projects, project),
+        details: currentDetails?.project.id == projectId
+            ? currentDetails?.copyWith(project: project)
+            : null,
+        isSubmitting: false,
+      );
+      return project;
+    } catch (error) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFrom(error),
+      );
+      return null;
+    }
+  }
+
+  Future<bool> deleteProject(String projectId) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return false;
+    }
+
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      await _repository.deleteProject(
+        projectId: projectId,
+        isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
+      );
+      state = state.copyWith(
+        projects: state.projects
+            .where((project) => project.id != projectId)
+            .toList(),
+        clearDetails: state.details?.project.id == projectId,
+        isSubmitting: false,
+      );
       return true;
     } catch (error) {
       state = state.copyWith(

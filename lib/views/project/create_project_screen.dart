@@ -20,15 +20,64 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _memberEmailController = TextEditingController();
+  final _memberEmailFocus = FocusNode();
+  final List<String> _memberEmails = [];
+  String? _memberEmailError;
+
+  static final _emailPattern = RegExp(
+    r"^[\w.!#$%&'*+/=?^_`{|}~-]+@[\w-]+(?:\.[\w-]+)+$",
+  );
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _memberEmailController.dispose();
+    _memberEmailFocus.dispose();
     super.dispose();
   }
 
+  void _addMemberEmail() {
+    final email = _memberEmailController.text.trim().toLowerCase();
+    final currentEmail = ref
+        .read(authViewModelProvider)
+        .user
+        ?.email
+        .toLowerCase();
+    String? error;
+    if (email.isEmpty) {
+      error = 'Enter an email before adding it';
+    } else if (!_emailPattern.hasMatch(email)) {
+      error = 'Enter a valid email address';
+    } else if (email == currentEmail) {
+      error = 'The project owner is added automatically';
+    } else if (_memberEmails.contains(email)) {
+      error = 'This email is already in the list';
+    }
+
+    setState(() => _memberEmailError = error);
+    if (error != null) return;
+    setState(() {
+      _memberEmails.add(email);
+      _memberEmailController.clear();
+    });
+    _memberEmailFocus.requestFocus();
+  }
+
+  void _resetForm() {
+    _nameController.clear();
+    _descriptionController.clear();
+    _memberEmailController.clear();
+    setState(() {
+      _memberEmails.clear();
+      _memberEmailError = null;
+    });
+    ref.read(projectViewModelProvider.notifier).clearError();
+  }
+
   Future<void> _createProject() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final user = ref.read(authViewModelProvider).user;
@@ -37,17 +86,23 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
     final project = await ref
         .read(projectViewModelProvider.notifier)
         .createProject(
-          name: _nameController.text,
-          description: _descriptionController.text,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
           ownerId: user.id,
+          memberEmails: _memberEmails,
         );
 
-    if (project != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Project "${project.name}" created.')),
-      );
-      context.pop(project.id);
-    }
+    if (!mounted || project == null) return;
+    final warning = ref.read(projectViewModelProvider).errorMessage;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          warning ??
+              'Project “${project.name}” created${_memberEmails.isEmpty ? '.' : ' with invited members.'}',
+        ),
+      ),
+    );
+    context.pop(project.id);
   }
 
   @override
@@ -60,100 +115,145 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
         body: LoadingWidget(message: 'Checking permissions...'),
       );
     }
-
     if (authState.user?.isManager != true) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Create Project')),
-        body: const _ProjectAccessDenied(
-          message: 'Only managers can create projects.',
-        ),
-      );
+      return const _ProjectAccessDenied();
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Project')),
+      appBar: AppBar(
+        title: const Text('Create Project'),
+        actions: [
+          TextButton(
+            onPressed: projectState.isSubmitting ? null : _resetForm,
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.paddingLg),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Start a new project',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: AppConstants.paddingSm),
-                Text(
-                  'Give your team a clear project name and a short description.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppConstants.paddingXl),
-                if (projectState.errorMessage != null) ...[
-                  _InlineProjectError(
-                    message: projectState.errorMessage!,
-                    onDismiss: () => ref
-                        .read(projectViewModelProvider.notifier)
-                        .clearError(),
-                  ),
-                  const SizedBox(height: AppConstants.paddingMd),
-                ],
-                CustomTextField(
-                  controller: _nameController,
-                  labelText: 'Project Name',
-                  hintText: 'e.g. Mobile App Redesign',
-                  prefixIcon: Icons.folder_outlined,
-                  validator: (value) {
-                    final name = value?.trim() ?? '';
-                    if (name.isEmpty) return 'Project name is required';
-                    if (name.length < 3) {
-                      return 'Project name must be at least 3 characters';
-                    }
-                    if (name.length > 100) {
-                      return 'Project name must not exceed 100 characters';
-                    }
-                    return null;
-                  },
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(AppConstants.paddingLg),
+            children: [
+              _SectionHeader(
+                icon: Icons.folder_outlined,
+                title: 'Project information',
+                subtitle: 'Use a concise name and explain the project goal.',
+              ),
+              const SizedBox(height: AppConstants.paddingLg),
+              if (projectState.errorMessage != null) ...[
+                _InlineProjectError(
+                  message: projectState.errorMessage!,
+                  onDismiss: () =>
+                      ref.read(projectViewModelProvider.notifier).clearError(),
                 ),
                 const SizedBox(height: AppConstants.paddingMd),
-                Text(
-                  'Description',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: AppConstants.paddingXs),
-                TextFormField(
-                  controller: _descriptionController,
-                  minLines: 4,
-                  maxLines: 7,
-                  maxLength: 500,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'Describe the project goals and scope',
-                    alignLabelWithHint: true,
+              ],
+              CustomTextField(
+                controller: _nameController,
+                labelText: 'Project name',
+                hintText: 'e.g. Mobile App Redesign',
+                prefixIcon: Icons.drive_file_rename_outline_rounded,
+                validator: (value) {
+                  final name = value?.trim() ?? '';
+                  if (name.isEmpty) return 'Project name is required';
+                  if (name.length < 3) {
+                    return 'Project name must be at least 3 characters';
+                  }
+                  if (name.length > 100) {
+                    return 'Project name must not exceed 100 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppConstants.paddingMd),
+              TextFormField(
+                controller: _descriptionController,
+                minLines: 4,
+                maxLines: 7,
+                maxLength: 500,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Describe the project goals and scope',
+                  alignLabelWithHint: true,
+                  suffixIcon: IconButton(
+                    tooltip: 'Clear description',
+                    onPressed: _descriptionController.clear,
+                    icon: const Icon(Icons.backspace_outlined),
                   ),
-                  validator: (value) {
-                    if ((value?.trim().length ?? 0) > 500) {
-                      return 'Description must not exceed 500 characters';
-                    }
-                    return null;
-                  },
                 ),
-                const SizedBox(height: AppConstants.paddingLg),
-                CustomButton(
-                  text: 'Create Project',
-                  icon: Icons.add_rounded,
-                  isLoading: projectState.isSubmitting,
-                  onPressed: _createProject,
+              ),
+              const SizedBox(height: AppConstants.paddingLg),
+              const Divider(),
+              const SizedBox(height: AppConstants.paddingLg),
+              _SectionHeader(
+                icon: Icons.group_add_outlined,
+                title: 'Initial members',
+                subtitle:
+                    'Optional. Accounts are verified when the project is created.',
+              ),
+              const SizedBox(height: AppConstants.paddingMd),
+              TextField(
+                controller: _memberEmailController,
+                focusNode: _memberEmailFocus,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                autocorrect: false,
+                onSubmitted: (_) => _addMemberEmail(),
+                onChanged: (_) {
+                  if (_memberEmailError != null) {
+                    setState(() => _memberEmailError = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: 'Member email',
+                  hintText: 'member@example.com',
+                  prefixIcon: const Icon(Icons.alternate_email_rounded),
+                  errorText: _memberEmailError,
+                  suffixIcon: IconButton(
+                    tooltip: 'Add email',
+                    onPressed: _addMemberEmail,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                  ),
+                ),
+              ),
+              if (_memberEmails.isNotEmpty) ...[
+                const SizedBox(height: AppConstants.paddingMd),
+                Wrap(
+                  spacing: AppConstants.paddingSm,
+                  runSpacing: AppConstants.paddingSm,
+                  children: _memberEmails
+                      .map(
+                        (email) => InputChip(
+                          avatar: const Icon(Icons.person_outline, size: 18),
+                          label: Text(email),
+                          onDeleted: projectState.isSubmitting
+                              ? null
+                              : () =>
+                                    setState(() => _memberEmails.remove(email)),
+                        ),
+                      )
+                      .toList(),
                 ),
               ],
-            ),
+              const SizedBox(height: AppConstants.paddingXl),
+              CustomButton(
+                text: _memberEmails.isEmpty
+                    ? 'Create Project'
+                    : 'Create & Add ${_memberEmails.length} Members',
+                icon: Icons.add_task_rounded,
+                isLoading: projectState.isSubmitting,
+                onPressed: _createProject,
+              ),
+              const SizedBox(height: AppConstants.paddingSm),
+              TextButton(
+                onPressed: projectState.isSubmitting
+                    ? null
+                    : () => context.pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
           ),
         ),
       ),
@@ -161,34 +261,79 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
   }
 }
 
-class _ProjectAccessDenied extends StatelessWidget {
-  const _ProjectAccessDenied({required this.message});
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
 
-  final String message;
+  final IconData icon;
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.paddingLg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.lock_outline_rounded,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: AppConstants.paddingMd),
-            Text(
-              'Access denied',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: AppConstants.paddingSm),
-            Text(message, textAlign: TextAlign.center),
-          ],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: AppConstants.paddingMd),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppConstants.paddingXs),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProjectAccessDenied extends StatelessWidget {
+  const _ProjectAccessDenied();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Create Project')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.paddingLg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.lock_outline_rounded,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: AppConstants.paddingMd),
+              Text(
+                'Manager access required',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppConstants.paddingSm),
+              const Text(
+                'Only managers can create projects.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -211,10 +356,7 @@ class _InlineProjectError extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.error_outline_rounded,
-            color: Theme.of(context).colorScheme.onErrorContainer,
-          ),
+          const Icon(Icons.error_outline_rounded),
           const SizedBox(width: AppConstants.paddingSm),
           Expanded(child: Text(message)),
           IconButton(

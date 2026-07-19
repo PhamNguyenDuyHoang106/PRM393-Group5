@@ -3,7 +3,7 @@ import '../core/constants/app_constants.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool isLoading;
   final IconData? icon;
 
@@ -30,10 +30,12 @@ class CustomButton extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? AppConstants.primaryDark : AppConstants.primaryLight).withValues(alpha: 0.3),
+            color:
+                (isDark ? AppConstants.primaryDark : AppConstants.primaryLight)
+                    .withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: ElevatedButton(
