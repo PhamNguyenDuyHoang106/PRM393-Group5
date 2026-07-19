@@ -13,7 +13,7 @@ class DbHelper {
 
   static Database? _database;
   static const String _dbName = 'smart_task.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -56,7 +56,8 @@ class DbHelper {
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         role TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        avatar_url TEXT
       )
     ''');
 
@@ -119,9 +120,8 @@ class DbHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Implement database migrations in future versions
     if (oldVersion < 2) {
-      // Future Migration code
+      await db.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT');
     }
   }
 

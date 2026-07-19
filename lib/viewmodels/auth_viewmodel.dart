@@ -81,6 +81,48 @@ class AuthViewModel extends StateNotifier<AuthState> {
 
 
 
+  Future<bool> sendPasswordResetLink(String email) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _authRepository.sendPasswordResetLink(email);
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString().replaceAll('Exception: ', ''));
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile({
+    String? name,
+    String? avatarUrl,
+    String? newPassword,
+    String? oldPassword,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updatedUser = await _authRepository.updateProfile(
+        name: name,
+        avatarUrl: avatarUrl,
+        newPassword: newPassword,
+        oldPassword: oldPassword,
+      );
+      if (updatedUser != null) {
+        state = state.copyWith(user: updatedUser, isLoading: false);
+        return true;
+      }
+      state = state.copyWith(isLoading: false, errorMessage: 'Failed to update profile.');
+      return false;
+    } catch (e) {
+      String errorMsg = e.toString().replaceAll('Exception: ', '');
+      if (errorMsg.contains('connection error') || errorMsg.contains('XMLHttpRequest') || errorMsg.contains('SocketException')) {
+        errorMsg = 'Cannot connect to backend server. Please verify that your local NestJS server is running on http://localhost:5000';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMsg);
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
     try {

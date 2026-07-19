@@ -16,68 +16,60 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
     _emailController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _handleResetPassword() {
+  void _handleSendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(forgotPasswordViewModelProvider.notifier).resetPasswordDirect(
-          email: _emailController.text.trim(),
-          newPassword: _newPasswordController.text.trim(),
-        );
+    
+    final email = _emailController.text.trim();
+    final success = await ref.read(authViewModelProvider.notifier).sendPasswordResetLink(email);
+    
+    if (success && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.borderRadiusLg),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.mark_email_read_rounded, color: Colors.green, size: 28),
+              SizedBox(width: 10),
+              Text('Email Sent'),
+            ],
+          ),
+          content: Text(
+            'We have sent a password reset link to $email. Please check your inbox and follow the instructions to set a new password.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                context.pop(); // Go back to login
+              },
+              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(forgotPasswordViewModelProvider);
+    final state = ref.watch(authViewModelProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Reactively show dialog on success
-    ref.listen<ForgotPasswordState>(forgotPasswordViewModelProvider, (prev, next) {
-      if (next.status == ForgotPasswordStatus.success) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.borderRadiusLg),
-            ),
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
-                SizedBox(width: 10),
-                Text('Reset Success'),
-              ],
-            ),
-            content: const Text(
-              'Your password has been updated successfully. You can now log in with your new password.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close dialog
-                  context.pop(); // Go back to login
-                },
-                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-      }
-    });
 
     return Scaffold(
       backgroundColor: isDark ? AppConstants.backgroundDark : AppConstants.backgroundLight,
       appBar: AppBar(
-        title: const Text('Reset Password'),
+        title: const Text('Forgot Password'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -98,7 +90,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.lock_reset_rounded, size: 80, color: Color(0xFF4F46E5)),
+                  const Icon(Icons.mail_lock_rounded, size: 80, color: Color(0xFF4F46E5)),
                   const SizedBox(height: AppConstants.paddingLg),
 
                   Text(
@@ -112,7 +104,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: AppConstants.paddingXs),
                   Text(
-                    'Enter your registered email address and set your new password directly.',
+                    'Enter your email address below and we will send you a secure link to reset your password.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -143,7 +135,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           IconButton(
                             icon: const Icon(Icons.close, color: Colors.red, size: 16),
                             onPressed: () => ref
-                                .read(forgotPasswordViewModelProvider.notifier)
+                                .read(authViewModelProvider.notifier)
                                 .clearError(),
                           ),
                         ],
@@ -156,7 +148,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   CustomTextField(
                     controller: _emailController,
                     labelText: 'Email Address',
-                    hintText: 'Enter your email address',
+                    hintText: 'Enter your registered email',
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     validator: (val) {
@@ -167,64 +159,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppConstants.paddingMd),
-
-                  // New Password
-                  CustomTextField(
-                    controller: _newPasswordController,
-                    labelText: 'New Password',
-                    hintText: 'Enter new password',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    obscureText: !state.isNewPasswordVisible,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        state.isNewPasswordVisible
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                      onPressed: () => ref
-                          .read(forgotPasswordViewModelProvider.notifier)
-                          .toggleNewPasswordVisibility(),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.isEmpty) return 'New password is required';
-                      if (val.length < 6) return 'Password must be at least 6 characters';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: AppConstants.paddingMd),
-
-                  // Confirm Password
-                  CustomTextField(
-                    controller: _confirmPasswordController,
-                    labelText: 'Confirm Password',
-                    hintText: 'Confirm new password',
-                    prefixIcon: Icons.lock_outline_rounded,
-                    obscureText: !state.isConfirmPasswordVisible,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        state.isConfirmPasswordVisible
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                      onPressed: () => ref
-                          .read(forgotPasswordViewModelProvider.notifier)
-                          .toggleConfirmPasswordVisibility(),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.isEmpty) return 'Confirm password is required';
-                      if (val != _newPasswordController.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
-                  ),
                   const SizedBox(height: AppConstants.paddingLg),
 
                   CustomButton(
-                    text: 'Reset Password',
-                    isLoading: state.status == ForgotPasswordStatus.updatingPassword,
-                    onPressed: _handleResetPassword,
+                    text: 'Send Reset Link',
+                    isLoading: state.isLoading,
+                    onPressed: _handleSendResetLink,
                   ),
                 ],
               ),

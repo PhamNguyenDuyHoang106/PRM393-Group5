@@ -6,5 +6,6 @@ export declare class AuthGuard implements CanActivate {
     private readonly prismaService;
     private readonly logger;
     constructor(firebaseService: FirebaseService, prismaService: PrismaService);
+    private decodeJwtPayload;
     canActivate(context: ExecutionContext): Promise<boolean>;
 }

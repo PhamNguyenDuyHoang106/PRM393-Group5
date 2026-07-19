@@ -21,7 +21,6 @@ import '../../views/dashboard/manager_dashboard_screen.dart';
 import '../../views/dashboard/member_home_screen.dart';
 import '../../views/dashboard/statistics_screen.dart';
 import '../../views/dashboard/notification_center_screen.dart';
-import '../../views/dashboard/settings_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -165,11 +164,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/notifications',
         builder: (context, state) => const NotificationCenterScreen(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
