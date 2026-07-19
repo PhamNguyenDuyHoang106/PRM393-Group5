@@ -9,6 +9,7 @@ class User {
   final String email;
   final String role; // 'manager' or 'member'
   final DateTime createdAt;
+  final String? avatarUrl;
 
   User({
     required this.id,
@@ -16,6 +17,7 @@ class User {
     required this.email,
     required this.role,
     required this.createdAt,
+    this.avatarUrl,
   });
 
   User copyWith({
@@ -24,6 +26,7 @@ class User {
     String? email,
     String? role,
     DateTime? createdAt,
+    String? avatarUrl,
   }) {
     return User(
       id: id ?? this.id,
@@ -31,6 +34,7 @@ class User {
       email: email ?? this.email,
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 
@@ -41,16 +45,24 @@ class User {
       'email': email,
       'role': role,
       'created_at': createdAt.toIso8601String(),
+      'avatar_url': avatarUrl,
     };
   }
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Handle both camelCase from NestJS and snake_case from SQLite
+    final rawAvatar = json['avatar_url'] ?? json['avatarUrl'];
+    final rawCreatedAt = json['created_at'] ?? json['createdAt'];
+    
     return User(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      email: json['email'] as String,
-      role: json['role'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      role: (json['role'] ?? 'member').toString(),
+      createdAt: rawCreatedAt != null
+          ? DateTime.parse(rawCreatedAt.toString())
+          : DateTime.now(),
+      avatarUrl: rawAvatar?.toString(),
     );
   }
 

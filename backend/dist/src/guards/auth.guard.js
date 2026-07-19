@@ -22,6 +22,19 @@ let AuthGuard = AuthGuard_1 = class AuthGuard {
         this.firebaseService = firebaseService;
         this.prismaService = prismaService;
     }
+    decodeJwtPayload(token) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3)
+                return null;
+            const payload = parts[1];
+            const decoded = Buffer.from(payload, 'base64').toString('utf-8');
+            return JSON.parse(decoded);
+        }
+        catch (_) {
+            return null;
+        }
+    }
     async canActivate(context) {
         const request = context.switchToHttp().getRequest();
         const authHeader = request.headers.authorization;
@@ -32,18 +45,32 @@ let AuthGuard = AuthGuard_1 = class AuthGuard {
         try {
             let decodedToken;
             if (!this.firebaseService.isInitialized()) {
-                this.logger.warn('Running in Mock Mode. Bypassing Firebase Admin SDK verification.');
-                decodedToken = {
-                    uid: token.includes('manager') ? 'manager_uid' : 'member_uid',
-                    email: token.includes('manager') ? 'manager@gmail.com' : 'member@gmail.com',
-                };
+                this.logger.warn('Running in Mock Mode. Decrypting JWT payload locally without signature verification.');
+                const payload = this.decodeJwtPayload(token);
+                if (payload && payload.email) {
+                    decodedToken = {
+                        uid: payload.user_id ?? payload.sub ?? '',
+                        email: payload.email,
+                    };
+                }
+                else {
+                    decodedToken = {
+                        uid: token.includes('manager') ? 'seed-manager-001' : 'seed-member-001',
+                        email: token.includes('manager') ? 'manager@gmail.com' : 'member@gmail.com',
+                    };
+                }
             }
             else {
                 decodedToken = await this.firebaseService.getAuth().verifyIdToken(token);
             }
-            const user = await this.prismaService.user.findUnique({
+            let user = await this.prismaService.user.findUnique({
                 where: { id: decodedToken.uid },
             });
+            if (!user && decodedToken.email) {
+                user = await this.prismaService.user.findUnique({
+                    where: { email: decodedToken.email.toLowerCase() },
+                });
+            }
             if (!user) {
                 throw new common_1.UnauthorizedException('User profile not found in database.');
             }

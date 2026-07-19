@@ -25,10 +25,9 @@ __decorate([
     __metadata("design:type", String)
 ], UpdateProfileDto.prototype, "name", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ example: 'https://example.com/avatar.png', description: 'User profile picture URL' }),
+    (0, swagger_1.ApiPropertyOptional)({ example: 'data:image/png;base64,iVBORw0KGgo...', description: 'User profile picture URL or Base64 string' }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsUrl)(),
     __metadata("design:type", String)
 ], UpdateProfileDto.prototype, "avatarUrl", void 0);
 //# sourceMappingURL=update-profile.dto.js.map

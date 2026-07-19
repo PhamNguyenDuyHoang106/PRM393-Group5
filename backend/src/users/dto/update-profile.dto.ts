@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUrl, MinLength } from 'class-validator';
+import { IsString, IsOptional, MinLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -8,9 +8,8 @@ export class UpdateProfileDto {
   @MinLength(3)
   name?: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.png', description: 'User profile picture URL' })
+  @ApiPropertyOptional({ example: 'data:image/png;base64,iVBORw0KGgo...', description: 'User profile picture URL or Base64 string' })
   @IsOptional()
   @IsString()
-  @IsUrl()
   avatarUrl?: string;
 }

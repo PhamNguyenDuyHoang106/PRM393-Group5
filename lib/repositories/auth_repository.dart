@@ -271,6 +271,93 @@ class AuthRepository {
     }
   }
 
+  Future<void> sendPasswordResetLink(String email) async {
+    final fbAuth = _firebaseAuth;
+    if (fbAuth != null) {
+      await fbAuth.sendPasswordResetEmail(email: email);
+      debugPrint('[AuthRepository] Firebase Password Reset Email sent to $email');
+    } else {
+      // Mock mode fallback
+      debugPrint('[AuthRepository] Mock Password Reset Email sent to $email');
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  Future<User?> updateProfile({
+    String? name,
+    String? avatarUrl,
+    String? newPassword,
+    String? oldPassword,
+  }) async {
+    try {
+      final fbAuth = _firebaseAuth;
+      final fbUser = fbAuth?.currentUser;
+
+      // 1. Update Firebase Auth Password with re-authentication if online & requested
+      if (newPassword != null && newPassword.trim().isNotEmpty) {
+        if (fbUser != null) {
+          if (oldPassword == null || oldPassword.trim().isEmpty) {
+            throw Exception('Current password is required to change password.');
+          }
+          final cred = fb.EmailAuthProvider.credential(
+            email: fbUser.email!,
+            password: oldPassword.trim(),
+          );
+          await fbUser.reauthenticateWithCredential(cred);
+          await fbUser.updatePassword(newPassword.trim());
+          debugPrint('[AuthRepository] Firebase User Password updated after reauthentication.');
+        } else {
+          // Mock mode
+          if (oldPassword == null || oldPassword.trim().isEmpty) {
+            throw Exception('Current password is required to change password.');
+          }
+          if (oldPassword != '123456') {
+            throw Exception('Current password is incorrect.');
+          }
+          debugPrint('[AuthRepository] Mock Password updated successfully.');
+        }
+      }
+
+      // 2. Call NestJS backend API to save profile changes
+      User? updatedUser;
+      if ((name != null && name.trim().isNotEmpty) || avatarUrl != null) {
+        final response = await _dioClient.dio.put('/users/profile', data: {
+          if (name != null) 'name': name.trim(),
+          if (avatarUrl != null) 'avatarUrl': avatarUrl.trim(),
+        });
+        
+        dynamic raw = response.data;
+        if (raw is Map && raw.containsKey('data')) {
+          raw = raw['data'];
+        }
+        if (raw is Map) {
+          updatedUser = User.fromJson(Map<String, dynamic>.from(raw));
+        }
+      }
+
+      // 3. Fallback / Update cache
+      if (updatedUser == null) {
+        final currentId = fbUser?.uid ?? 'usr_manager_seed';
+        final cached = await _dbHelper.getCachedUser(currentId);
+        if (cached != null) {
+          updatedUser = cached.copyWith(
+            name: name ?? cached.name,
+            avatarUrl: avatarUrl ?? cached.avatarUrl,
+          );
+        }
+      }
+
+      if (updatedUser != null) {
+        await _dbHelper.cacheUser(updatedUser);
+      }
+
+      return updatedUser;
+    } catch (e) {
+      debugPrint('[AuthRepository] Update Profile Error: $e');
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     final fbAuth = _firebaseAuth;
     if (fbAuth != null) {

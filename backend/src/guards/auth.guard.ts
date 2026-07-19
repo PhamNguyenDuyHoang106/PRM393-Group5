@@ -17,6 +17,18 @@ export class AuthGuard implements CanActivate {
     private readonly prismaService: PrismaService,
   ) {}
 
+  private decodeJwtPayload(token: string): any {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const payload = parts[1];
+      const decoded = Buffer.from(payload, 'base64').toString('utf-8');
+      return JSON.parse(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
@@ -32,19 +44,36 @@ export class AuthGuard implements CanActivate {
 
       if (!this.firebaseService.isInitialized()) {
         // Fallback for mock environment testing
-        this.logger.warn('Running in Mock Mode. Bypassing Firebase Admin SDK verification.');
-        decodedToken = {
-          uid: token.includes('manager') ? 'manager_uid' : 'member_uid',
-          email: token.includes('manager') ? 'manager@gmail.com' : 'member@gmail.com',
-        };
+        this.logger.warn('Running in Mock Mode. Decrypting JWT payload locally without signature verification.');
+        const payload = this.decodeJwtPayload(token);
+        
+        if (payload && payload.email) {
+          decodedToken = {
+            uid: payload.user_id ?? payload.sub ?? '',
+            email: payload.email,
+          };
+        } else {
+          // If token is a simple mock string, default based on mock prefixes
+          decodedToken = {
+            uid: token.includes('manager') ? 'seed-manager-001' : 'seed-member-001',
+            email: token.includes('manager') ? 'manager@gmail.com' : 'member@gmail.com',
+          };
+        }
       } else {
         decodedToken = await this.firebaseService.getAuth().verifyIdToken(token);
       }
 
       // Fetch user profile and role from PostgreSQL database
-      const user = await this.prismaService.user.findUnique({
+      let user = await this.prismaService.user.findUnique({
         where: { id: decodedToken.uid },
       });
+
+      // Fallback search by email to support seeded profiles with mismatching Firebase UIDs
+      if (!user && decodedToken.email) {
+        user = await this.prismaService.user.findUnique({
+          where: { email: decodedToken.email.toLowerCase() },
+        });
+      }
 
       if (!user) {
         throw new UnauthorizedException('User profile not found in database.');
