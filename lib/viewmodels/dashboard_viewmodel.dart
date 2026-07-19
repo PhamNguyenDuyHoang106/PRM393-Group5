@@ -64,10 +64,14 @@ class DashboardViewModel extends StateNotifier<DashboardState> {
   }
 
   /// Tải dữ liệu thống kê lần đầu hoặc khi navigate vào màn.
-  Future<void> loadStatistics({String? dateRange}) async {
+  Future<void> loadStatistics({String? dateRange, String? userId, String? role}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final stats = await _statisticsRepository.getStatistics(dateRange: dateRange);
+      final stats = await _statisticsRepository.getStatistics(
+        dateRange: dateRange,
+        userId: userId,
+        role: role,
+      );
       state = state.copyWith(
         statistics: stats,
         isLoading: false,
@@ -82,12 +86,15 @@ class DashboardViewModel extends StateNotifier<DashboardState> {
   }
 
   /// Force refresh — bỏ qua cache, tải lại từ API.
-  Future<void> refreshData() async {
+  Future<void> refreshData({String? userId, String? role}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       _statisticsRepository.invalidateCache();
-      final stats =
-          await _statisticsRepository.getStatistics(forceRefresh: true);
+      final stats = await _statisticsRepository.getStatistics(
+        forceRefresh: true,
+        userId: userId,
+        role: role,
+      );
       state = state.copyWith(
         statistics: stats,
         isLoading: false,

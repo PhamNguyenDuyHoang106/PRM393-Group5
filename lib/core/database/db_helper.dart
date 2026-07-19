@@ -367,10 +367,53 @@ class DbHelper {
   }
 
   // Calculate statistics from local tables
-  // Calculate statistics from local tables with date range filter
-  Future<Statistics> getLocalStatistics({String? dateRange}) async {
+  // Calculate statistics from local tables with date range and user filters
+  Future<Statistics> getLocalStatistics({String? dateRange, String? userId, String? role}) async {
     final db = await database;
     
+    // 1. Establish user filter clauses
+    String projectQuery = 'SELECT COUNT(*) as count FROM projects';
+    String taskQuery = 'SELECT COUNT(*) as count FROM tasks';
+    String completedQuery = "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'";
+    String pendingQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'";
+    String overdueQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?";
+    String statusQuery = 'SELECT status, COUNT(*) as count FROM tasks';
+    String priorityQuery = 'SELECT priority, COUNT(*) as count FROM tasks';
+    
+    List<dynamic> projectArgs = [];
+    List<dynamic> baseArgs = [];
+    
+    if (userId != null && role != null) {
+      final isManager = role.toLowerCase() == 'manager';
+      if (isManager) {
+        projectQuery = 'SELECT COUNT(*) as count FROM projects WHERE owner_id = ?';
+        projectArgs.add(userId);
+        
+        final managerTaskFilter = " WHERE project_id IN (SELECT id FROM projects WHERE owner_id = ?)";
+        taskQuery += managerTaskFilter;
+        completedQuery = "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE' AND project_id IN (SELECT id FROM projects WHERE owner_id = ?)";
+        pendingQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND project_id IN (SELECT id FROM projects WHERE owner_id = ?)";
+        overdueQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ? AND project_id IN (SELECT id FROM projects WHERE owner_id = ?)";
+        statusQuery += managerTaskFilter;
+        priorityQuery += managerTaskFilter;
+        baseArgs.add(userId);
+      } else {
+        // Member / employee
+        projectQuery = 'SELECT COUNT(*) as count FROM project_members WHERE user_id = ?';
+        projectArgs.add(userId);
+        
+        final memberTaskFilter = " WHERE assigned_to = ?";
+        taskQuery += memberTaskFilter;
+        completedQuery = "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE' AND assigned_to = ?";
+        pendingQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND assigned_to = ?";
+        overdueQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ? AND assigned_to = ?";
+        statusQuery += memberTaskFilter;
+        priorityQuery += memberTaskFilter;
+        baseArgs.add(userId);
+      }
+    }
+
+    // 2. Establish date range filter clauses
     String filter = "";
     List<dynamic> filterArgs = [];
     final now = DateTime.now();
@@ -383,7 +426,7 @@ class DbHelper {
         final startStr = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day).toIso8601String();
         final endOfWeek = startOfWeek.add(const Duration(days: 7));
         final endStr = DateTime(endOfWeek.year, endOfWeek.month, endOfWeek.day).toIso8601String();
-        filter = " WHERE due_date >= ? AND due_date < ? ";
+        filter = " due_date >= ? AND due_date < ? ";
         filterArgs.addAll([startStr, endStr]);
       } else if (dateRange == 'This Month') {
         final startStr = DateTime(now.year, now.month, 1).toIso8601String();
@@ -391,41 +434,37 @@ class DbHelper {
         final nextMonthYear = now.month == 12 ? now.year + 1 : now.year;
         final nextMonthVal = now.month == 12 ? 1 : now.month + 1;
         final endStr = DateTime(nextMonthYear, nextMonthVal, 1).toIso8601String();
-        filter = " WHERE due_date >= ? AND due_date < ? ";
+        filter = " due_date >= ? AND due_date < ? ";
         filterArgs.addAll([startStr, endStr]);
       }
     }
 
-    final projectCountRes = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM projects',
-    );
-
-    String taskQuery = 'SELECT COUNT(*) as count FROM tasks';
-    String completedQuery = "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'";
-    String pendingQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'";
-    String overdueQuery = "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?";
-    String statusQuery = 'SELECT status, COUNT(*) as count FROM tasks';
-    String priorityQuery = 'SELECT priority, COUNT(*) as count FROM tasks';
-
-    List<dynamic> overdueArgs = [nowStr];
-
+    // Combine filters
     if (filter.isNotEmpty) {
-      taskQuery += filter;
-      completedQuery += filter.replaceFirst(" WHERE ", " AND ");
-      pendingQuery += filter.replaceFirst(" WHERE ", " AND ");
-      overdueQuery += "${filter.replaceFirst(" WHERE ", " AND ")} AND due_date < ?";
-      statusQuery += "$filter GROUP BY status";
-      priorityQuery += "$filter GROUP BY priority";
+      final hasUserFilter = userId != null && role != null;
+      final connector = hasUserFilter ? " AND " : " WHERE ";
       
-      overdueArgs.insertAll(0, filterArgs);
+      taskQuery += "$connector$filter";
+      completedQuery += " AND $filter";
+      pendingQuery += " AND $filter";
+      overdueQuery += " AND $filter";
+      
+      statusQuery += "$connector$filter GROUP BY status";
+      priorityQuery += "$connector$filter GROUP BY priority";
     } else {
       statusQuery += ' GROUP BY status';
       priorityQuery += ' GROUP BY priority';
     }
 
-    final taskCountRes = await db.rawQuery(taskQuery, filter.isNotEmpty ? filterArgs : null);
-    final completedCountRes = await db.rawQuery(completedQuery, filter.isNotEmpty ? filterArgs : null);
-    final pendingCountRes = await db.rawQuery(pendingQuery, filter.isNotEmpty ? filterArgs : null);
+    List<dynamic> taskArgs = [...baseArgs, ...filterArgs];
+    List<dynamic> completedArgs = [...baseArgs, ...filterArgs];
+    List<dynamic> pendingArgs = [...baseArgs, ...filterArgs];
+    List<dynamic> overdueArgs = [nowStr, ...baseArgs, ...filterArgs];
+
+    final projectCountRes = await db.rawQuery(projectQuery, projectArgs.isNotEmpty ? projectArgs : null);
+    final taskCountRes = await db.rawQuery(taskQuery, taskArgs.isNotEmpty ? taskArgs : null);
+    final completedCountRes = await db.rawQuery(completedQuery, completedArgs.isNotEmpty ? completedArgs : null);
+    final pendingCountRes = await db.rawQuery(pendingQuery, pendingArgs.isNotEmpty ? pendingArgs : null);
     final overdueCountRes = await db.rawQuery(overdueQuery, overdueArgs);
 
     final projectCount = Sqflite.firstIntValue(projectCountRes) ?? 0;
@@ -434,8 +473,8 @@ class DbHelper {
     final pendingCount = Sqflite.firstIntValue(pendingCountRes) ?? 0;
     final overdueCount = Sqflite.firstIntValue(overdueCountRes) ?? 0;
 
-    final statusRes = await db.rawQuery(statusQuery, filter.isNotEmpty ? filterArgs : null);
-    final priorityRes = await db.rawQuery(priorityQuery, filter.isNotEmpty ? filterArgs : null);
+    final statusRes = await db.rawQuery(statusQuery, taskArgs.isNotEmpty ? taskArgs : null);
+    final priorityRes = await db.rawQuery(priorityQuery, taskArgs.isNotEmpty ? taskArgs : null);
 
     final Map<String, int> statusDist = {};
     for (var r in statusRes) {

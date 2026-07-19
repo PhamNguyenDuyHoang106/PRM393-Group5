@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../providers/dashboard_provider.dart';
+import '../../providers/providers.dart';
 import '../../models/statistics.dart';
 
 class StatisticsScreen extends ConsumerStatefulWidget {
@@ -19,7 +19,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange);
+      final user = ref.read(authViewModelProvider).user;
+      ref.read(dashboardViewModelProvider.notifier).loadStatistics(
+        dateRange: _dateRange,
+        userId: user?.id,
+        role: user?.role,
+      );
     });
   }
 
@@ -108,7 +113,14 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           const Text('No statistics data available', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 12),
           ElevatedButton(
-            onPressed: () => ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange),
+            onPressed: () {
+              final user = ref.read(authViewModelProvider).user;
+              ref.read(dashboardViewModelProvider.notifier).loadStatistics(
+                dateRange: _dateRange,
+                userId: user?.id,
+                role: user?.role,
+              );
+            },
             child: const Text('Retry'),
           ),
         ],
@@ -140,7 +152,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         setState(() {
           _dateRange = newSelection.first;
         });
-        ref.read(dashboardViewModelProvider.notifier).loadStatistics(dateRange: _dateRange);
+        final user = ref.read(authViewModelProvider).user;
+        ref.read(dashboardViewModelProvider.notifier).loadStatistics(
+          dateRange: _dateRange,
+          userId: user?.id,
+          role: user?.role,
+        );
       },
     );
   }

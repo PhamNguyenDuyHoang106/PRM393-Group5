@@ -25,8 +25,12 @@ class MemberHomeScreen extends ConsumerWidget {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (dashboardState.statistics == null &&
           !dashboardState.isLoading &&
-          dashboardState.errorMessage == null) {
-        ref.read(dashboardViewModelProvider.notifier).loadStatistics();
+          dashboardState.errorMessage == null &&
+          user != null) {
+        ref.read(dashboardViewModelProvider.notifier).loadStatistics(
+          userId: user.id,
+          role: user.role,
+        );
       }
     });
 
@@ -48,7 +52,12 @@ class MemberHomeScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await ref.read(dashboardViewModelProvider.notifier).refreshData();
+          if (user != null) {
+            await ref.read(dashboardViewModelProvider.notifier).refreshData(
+              userId: user.id,
+              role: user.role,
+            );
+          }
         },
         child: dashboardState.isLoading
             ? const Center(child: CircularProgressIndicator())
