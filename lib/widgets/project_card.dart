@@ -5,11 +5,15 @@ import '../core/constants/app_constants.dart';
 class ProjectCard extends StatelessWidget {
   final Project project;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const ProjectCard({
     super.key,
     required this.project,
     required this.onTap,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -27,21 +31,71 @@ class ProjectCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                project.name,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      project.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (onEdit != null || onDelete != null)
+                    PopupMenuButton<_ProjectCardAction>(
+                      tooltip: 'Project actions',
+                      padding: EdgeInsets.zero,
+                      onSelected: (action) {
+                        if (action == _ProjectCardAction.edit) {
+                          onEdit?.call();
+                        } else {
+                          onDelete?.call();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (onEdit != null)
+                          const PopupMenuItem(
+                            value: _ProjectCardAction.edit,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit'),
+                            ),
+                          ),
+                        if (onDelete != null)
+                          PopupMenuItem(
+                            value: _ProjectCardAction.delete,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                Icons.delete_outline,
+                                color: theme.colorScheme.error,
+                              ),
+                              title: Text(
+                                'Delete',
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
               ),
               const SizedBox(height: AppConstants.paddingSm),
               Text(
-                project.description.isNotEmpty ? project.description : 'No description provided.',
+                project.description.isNotEmpty
+                    ? project.description
+                    : 'No description provided.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
+                  color: isDark
+                      ? AppConstants.textSecondaryDark
+                      : AppConstants.textSecondaryLight,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -52,14 +106,18 @@ class ProjectCard extends StatelessWidget {
                   Icon(
                     Icons.person_pin_outlined,
                     size: 16,
-                    color: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
+                    color: isDark
+                        ? AppConstants.primaryDark
+                        : AppConstants.primaryLight,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     'Created on: ${project.createdAt.day}/${project.createdAt.month}/${project.createdAt.year}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
+                      color: isDark
+                          ? AppConstants.textSecondaryDark
+                          : AppConstants.textSecondaryLight,
                     ),
                   ),
                 ],
@@ -71,3 +129,5 @@ class ProjectCard extends StatelessWidget {
     );
   }
 }
+
+enum _ProjectCardAction { edit, delete }

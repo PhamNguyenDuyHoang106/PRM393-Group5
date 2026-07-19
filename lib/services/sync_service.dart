@@ -112,6 +112,17 @@ class SyncService {
           );
           return true;
 
+        case 'UPDATE_PROJECT':
+          await dio.put(
+            '/projects/${data["id"]}',
+            data: {'name': data['name'], 'description': data['description']},
+          );
+          return true;
+
+        case 'DELETE_PROJECT':
+          await dio.delete('/projects/${data["project_id"]}');
+          return true;
+
         case 'UPDATE_TASK':
           if (kDebugMode) {
             print('[SyncService] Syncing: Update task ${data["id"]}');

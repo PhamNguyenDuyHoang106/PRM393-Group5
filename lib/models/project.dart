@@ -44,8 +44,12 @@ class Project {
       id: json['id'].toString(),
       name: json['name'].toString(),
       description: json['description']?.toString() ?? '',
-      ownerId: json['owner_id'].toString(),
-      createdAt: DateTime.parse(json['created_at'].toString()),
+      ownerId: (json['owner_id'] ?? json['ownerId'] ?? '').toString(),
+      createdAt:
+          DateTime.tryParse(
+            (json['created_at'] ?? json['createdAt'] ?? '').toString(),
+          ) ??
+          DateTime.now(),
     );
   }
 }
@@ -103,16 +107,38 @@ class ProjectDetails {
 
   factory ProjectDetails.fromJson(Map<String, dynamic> json) {
     final membersJson = json['members'];
-    final members = membersJson is List
-        ? membersJson
-              .whereType<Map>()
-              .map(
-                (member) =>
-                    ProjectMember.fromJson(Map<String, dynamic>.from(member)),
-              )
-              .toList()
+    final parsedMembers = membersJson is List
+        ? membersJson.whereType<Map>().map((member) {
+            final normalized = Map<String, dynamic>.from(member);
+            final nestedUser = normalized['user'];
+            return ProjectMember.fromJson(
+              nestedUser is Map
+                  ? Map<String, dynamic>.from(nestedUser)
+                  : normalized,
+            );
+          }).toList()
         : <ProjectMember>[];
 
-    return ProjectDetails(project: Project.fromJson(json), members: members);
+    final ownerJson = json['owner'];
+    if (ownerJson is Map) {
+      final owner = ProjectMember.fromJson(
+        Map<String, dynamic>.from(ownerJson),
+      );
+      if (!parsedMembers.any((member) => member.id == owner.id)) {
+        parsedMembers.insert(0, owner);
+      }
+    }
+
+    final membersById = <String, ProjectMember>{};
+    for (final member in parsedMembers) {
+      if (member.id.isNotEmpty && member.id != 'null') {
+        membersById[member.id] = member;
+      }
+    }
+
+    return ProjectDetails(
+      project: Project.fromJson(json),
+      members: membersById.values.toList(),
+    );
   }
 }

@@ -12,6 +12,7 @@ import '../../views/project/project_list_screen.dart';
 import '../../views/project/create_project_screen.dart';
 import '../../views/project/project_detail_screen.dart';
 import '../../views/project/member_management_screen.dart';
+import '../../views/project/edit_project_screen.dart';
 import '../../views/task/task_list_screen.dart';
 import '../../views/task/create_task_screen.dart';
 import '../../views/task/task_detail_screen.dart';
@@ -33,14 +34,17 @@ class RouterTransitionNotifier extends ChangeNotifier {
   final Ref _ref;
   RouterTransitionNotifier(this._ref) {
     _ref.listen(authViewModelProvider, (previous, next) {
-      if (previous?.user?.id != next.user?.id || previous?.isLoading != next.isLoading) {
+      if (previous?.user?.id != next.user?.id ||
+          previous?.isLoading != next.isLoading) {
         notifyListeners();
       }
     });
   }
 }
 
-final routerTransitionNotifierProvider = Provider<RouterTransitionNotifier>((ref) {
+final routerTransitionNotifierProvider = Provider<RouterTransitionNotifier>((
+  ref,
+) {
   return RouterTransitionNotifier(ref);
 });
 
@@ -55,9 +59,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authViewModelProvider);
       final path = state.uri.path;
       final loggedIn = authState.user != null;
-      
-      debugPrint('[Router] Redirect check: path = $path, loggedIn = $loggedIn, isLoading = ${authState.isLoading}');
-      
+
+      debugPrint(
+        '[Router] Redirect check: path = $path, loggedIn = $loggedIn, isLoading = ${authState.isLoading}',
+      );
+
       // If auth state is loading on startup, do not redirect yet
       if (authState.isLoading) {
         debugPrint('[Router] AuthState is loading, holding redirect');
@@ -65,9 +71,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       final isAuthRoute =
-          path == '/login' ||
-          path == '/register' ||
-          path == '/forgot-password';
+          path == '/login' || path == '/register' || path == '/forgot-password';
 
       if (!loggedIn && !isAuthRoute) {
         debugPrint('[Router] Not logged in, redirecting to /login');
@@ -84,7 +88,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         final isManager = authState.user!.isManager;
 
         // Define manager-only paths
-        final isManagerOnlyPath = path.startsWith('/manager/dashboard') ||
+        final isManagerOnlyPath =
+            path.startsWith('/manager/dashboard') ||
             path.startsWith('/projects/create') ||
             (path.startsWith('/projects/') && path.endsWith('/members')) ||
             path.startsWith('/tasks/create') ||
@@ -182,6 +187,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final projectId = state.pathParameters['projectId'] ?? '';
           return ProjectDetailScreen(projectId: projectId);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/projects/:projectId/edit',
+        builder: (context, state) {
+          final projectId = state.pathParameters['projectId'] ?? '';
+          return EditProjectScreen(projectId: projectId);
         },
       ),
       GoRoute(

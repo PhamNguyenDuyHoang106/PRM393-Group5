@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../models/project.dart';
@@ -9,6 +10,10 @@ import '../../viewmodels/project_viewmodel.dart';
 import '../../widgets/empty_widget.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
+
+enum _MemberFilter { all, owner, members }
+
+enum _MemberSort { nameAscending, nameDescending }
 
 class MemberManagementScreen extends ConsumerStatefulWidget {
   const MemberManagementScreen({super.key, required this.projectId});
@@ -24,6 +29,10 @@ class _MemberManagementScreenState
     extends ConsumerState<MemberManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _searchController = TextEditingController();
+  String _query = '';
+  _MemberFilter _filter = _MemberFilter.all;
+  _MemberSort _sort = _MemberSort.nameAscending;
 
   @override
   void initState() {
@@ -34,13 +43,19 @@ class _MemberManagementScreenState
   @override
   void dispose() {
     _emailController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadDetails() {
-    return ref
-        .read(projectViewModelProvider.notifier)
-        .loadProjectDetails(widget.projectId);
+  Future<void> _loadDetails() async {
+    await Future.wait([
+      ref
+          .read(projectViewModelProvider.notifier)
+          .loadProjectDetails(widget.projectId),
+      ref
+          .read(taskViewModelProvider.notifier)
+          .loadTasks(projectId: widget.projectId),
+    ]);
   }
 
   Future<void> _addMember() async {
@@ -59,6 +74,56 @@ class _MemberManagementScreenState
   }
 
   Future<void> _confirmRemove(ProjectMember member) async {
+    final currentUser = ref.read(authViewModelProvider).user;
+    final details = ref.read(projectViewModelProvider).details;
+    if (member.id == details?.project.ownerId) {
+      _showMessage('The project owner cannot be removed.');
+      return;
+    }
+    if (member.id == currentUser?.id) {
+      _showMessage('You cannot remove yourself from a project you manage.');
+      return;
+    }
+
+    final openTaskCount = ref
+        .read(taskViewModelProvider)
+        .tasks
+        .where(
+          (task) =>
+              task.projectId == widget.projectId &&
+              task.assignedTo == member.id &&
+              task.status != 'DONE',
+        )
+        .length;
+    if (openTaskCount > 0) {
+      final viewTasks = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.assignment_late_outlined),
+          title: const Text('Reassign active tasks first'),
+          content: Text(
+            '${member.name} still has $openTaskCount unfinished '
+            '${openTaskCount == 1 ? 'task' : 'tasks'}. Reassign or finish them '
+            'before removing this member.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Close'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('View tasks'),
+            ),
+          ],
+        ),
+      );
+      if (viewTasks == true && mounted) {
+        context.go('/tasks?projectId=${Uri.encodeComponent(widget.projectId)}');
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -92,6 +157,36 @@ class _MemberManagementScreenState
         SnackBar(content: Text('${member.name} removed from the project.')),
       );
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<ProjectMember> _visibleMembers(ProjectDetails details) {
+    final query = _query.trim().toLowerCase();
+    final members = details.members.where((member) {
+      final matchesQuery =
+          query.isEmpty ||
+          member.name.toLowerCase().contains(query) ||
+          member.email.toLowerCase().contains(query);
+      final isOwner = member.id == details.project.ownerId;
+      final matchesFilter = switch (_filter) {
+        _MemberFilter.all => true,
+        _MemberFilter.owner => isOwner,
+        _MemberFilter.members => !isOwner,
+      };
+      return matchesQuery && matchesFilter;
+    }).toList();
+    members.sort((first, second) {
+      final comparison = first.name.toLowerCase().compareTo(
+        second.name.toLowerCase(),
+      );
+      return _sort == _MemberSort.nameAscending ? comparison : -comparison;
+    });
+    return members;
   }
 
   @override
@@ -133,6 +228,14 @@ class _MemberManagementScreenState
       );
     }
 
+    if (details.project.ownerId != authState.user?.id) {
+      return const _AccessDenied(
+        message: 'Only the project owner can manage its members.',
+      );
+    }
+
+    final visibleMembers = _visibleMembers(details);
+
     return RefreshIndicator(
       onRefresh: _loadDetails,
       child: ListView(
@@ -151,6 +254,66 @@ class _MemberManagementScreenState
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: AppConstants.paddingLg),
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: InputDecoration(
+              hintText: 'Search members by name or email',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          ),
+          const SizedBox(height: AppConstants.paddingSm),
+          Row(
+            children: [
+              Expanded(
+                child: SegmentedButton<_MemberFilter>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: _MemberFilter.all, label: Text('All')),
+                    ButtonSegment(
+                      value: _MemberFilter.owner,
+                      label: Text('Owner'),
+                    ),
+                    ButtonSegment(
+                      value: _MemberFilter.members,
+                      label: Text('Members'),
+                    ),
+                  ],
+                  selected: {_filter},
+                  onSelectionChanged: (value) {
+                    setState(() => _filter = value.first);
+                  },
+                ),
+              ),
+              PopupMenuButton<_MemberSort>(
+                tooltip: 'Sort members',
+                initialValue: _sort,
+                onSelected: (value) => setState(() => _sort = value),
+                icon: const Icon(Icons.sort_by_alpha_rounded),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: _MemberSort.nameAscending,
+                    child: Text('Name A–Z'),
+                  ),
+                  PopupMenuItem(
+                    value: _MemberSort.nameDescending,
+                    child: Text('Name Z–A'),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: AppConstants.paddingLg),
           Card(
@@ -220,17 +383,18 @@ class _MemberManagementScreenState
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppConstants.paddingSm),
-          if (details.members.isEmpty)
+          if (visibleMembers.isEmpty)
             const SizedBox(
               height: 260,
               child: EmptyWidget(
                 title: 'No members found',
-                message: 'Add a member using their email address.',
+                message:
+                    'Add a member or change the current search and filter.',
                 icon: Icons.group_off_outlined,
               ),
             )
           else
-            ...details.members.map(
+            ...visibleMembers.map(
               (member) => _MemberTile(
                 member: member,
                 isOwner: member.id == details.project.ownerId,
@@ -320,7 +484,11 @@ class _MemberError extends ConsumerWidget {
 }
 
 class _AccessDenied extends StatelessWidget {
-  const _AccessDenied();
+  const _AccessDenied({
+    this.message = 'Only managers can add or remove project members.',
+  });
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -343,10 +511,7 @@ class _AccessDenied extends StatelessWidget {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppConstants.paddingSm),
-            const Text(
-              'Only managers can add or remove project members.',
-              textAlign: TextAlign.center,
-            ),
+            Text(message, textAlign: TextAlign.center),
           ],
         ),
       ),

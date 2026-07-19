@@ -159,7 +159,10 @@ class DbHelper {
     return User.fromJson(maps.first);
   }
 
-  Future<void> updateUserId({required String oldId, required String newId}) async {
+  Future<void> updateUserId({
+    required String oldId,
+    required String newId,
+  }) async {
     final db = await database;
     await db.transaction((txn) async {
       await txn.update(
@@ -302,7 +305,23 @@ class DbHelper {
 
   Future<void> deleteCachedProject(String projectId) async {
     final db = await database;
-    await db.delete('projects', where: 'id = ?', whereArgs: [projectId]);
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'project_members',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
+      await transaction.delete(
+        'tasks',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
+      await transaction.delete(
+        'projects',
+        where: 'id = ?',
+        whereArgs: [projectId],
+      );
+    });
   }
 
   // Tasks Cache
@@ -350,14 +369,25 @@ class DbHelper {
   // Calculate statistics from local tables
   Future<Statistics> getLocalStatistics() async {
     final db = await database;
-    final projectCountRes = await db.rawQuery('SELECT COUNT(*) as count FROM projects');
-    final taskCountRes = await db.rawQuery('SELECT COUNT(*) as count FROM tasks');
-    final completedCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'");
-    final pendingCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'");
-    
+    final projectCountRes = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM projects',
+    );
+    final taskCountRes = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM tasks',
+    );
+    final completedCountRes = await db.rawQuery(
+      "SELECT COUNT(*) as count FROM tasks WHERE status = 'DONE'",
+    );
+    final pendingCountRes = await db.rawQuery(
+      "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE'",
+    );
+
     // Simple date comparison for overdue tasks
     final nowStr = DateTime.now().toIso8601String();
-    final overdueCountRes = await db.rawQuery("SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?", [nowStr]);
+    final overdueCountRes = await db.rawQuery(
+      "SELECT COUNT(*) as count FROM tasks WHERE status != 'DONE' AND due_date < ?",
+      [nowStr],
+    );
 
     final projectCount = Sqflite.firstIntValue(projectCountRes) ?? 0;
     final taskCount = Sqflite.firstIntValue(taskCountRes) ?? 0;
@@ -365,8 +395,12 @@ class DbHelper {
     final pendingCount = Sqflite.firstIntValue(pendingCountRes) ?? 0;
     final overdueCount = Sqflite.firstIntValue(overdueCountRes) ?? 0;
 
-    final statusRes = await db.rawQuery('SELECT status, COUNT(*) as count FROM tasks GROUP BY status');
-    final priorityRes = await db.rawQuery('SELECT priority, COUNT(*) as count FROM tasks GROUP BY priority');
+    final statusRes = await db.rawQuery(
+      'SELECT status, COUNT(*) as count FROM tasks GROUP BY status',
+    );
+    final priorityRes = await db.rawQuery(
+      'SELECT priority, COUNT(*) as count FROM tasks GROUP BY priority',
+    );
 
     final Map<String, int> statusDist = {};
     for (var r in statusRes) {
