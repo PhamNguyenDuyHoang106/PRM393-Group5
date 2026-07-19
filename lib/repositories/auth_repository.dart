@@ -337,8 +337,8 @@ class AuthRepository {
 
       // 3. Fallback / Update cache
       if (updatedUser == null) {
-        final currentId = fbUser?.uid ?? 'usr_manager_seed';
-        final cached = await _dbHelper.getCachedUser(currentId);
+        final currentEmail = fbUser?.email ?? 'manager@gmail.com';
+        final cached = await _dbHelper.getUserByEmail(currentEmail);
         if (cached != null) {
           updatedUser = cached.copyWith(
             name: name ?? cached.name,
