@@ -142,6 +142,26 @@ class ForgotPasswordViewModel extends StateNotifier<ForgotPasswordState> {
     }
   }
 
+  Future<void> resetPasswordDirect({
+    required String email,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(
+      status: ForgotPasswordStatus.updatingPassword,
+      email: email,
+      clearError: true,
+    );
+    try {
+      await _authRepository.resetPassword(email, '', newPassword);
+      state = state.copyWith(status: ForgotPasswordStatus.success);
+    } catch (e) {
+      state = state.copyWith(
+        status: ForgotPasswordStatus.failure,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
+  }
+
   void toggleNewPasswordVisibility() {
     state = state.copyWith(isNewPasswordVisible: !state.isNewPasswordVisible);
   }

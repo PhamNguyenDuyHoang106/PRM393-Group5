@@ -15,6 +15,7 @@ const swagger_1 = require("@nestjs/swagger");
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
 const STATUSES = ['TODO', 'IN_PROGRESS', 'DONE'];
 class CreateTaskDto {
+    id;
     title;
     description;
     priority;
@@ -22,6 +23,12 @@ class CreateTaskDto {
     dueDate;
 }
 exports.CreateTaskDto = CreateTaskDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'task_abc123', description: 'Optional task ID (for offline sync)' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateTaskDto.prototype, "id", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: 'Setup Flutter project' }),
     (0, class_validator_1.IsString)(),

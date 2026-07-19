@@ -90,11 +90,7 @@ let AuthService = AuthService_1 = class AuthService {
         return this.otpService.verifyOtp(email.toLowerCase(), otp);
     }
     async resetPassword(resetPasswordDto) {
-        const { email, otp, newPassword } = resetPasswordDto;
-        const isValid = await this.otpService.verifyOtp(email.toLowerCase(), otp);
-        if (!isValid) {
-            throw new common_1.BadRequestException('Invalid or unverified OTP code.');
-        }
+        const { email, newPassword } = resetPasswordDto;
         const user = await this.userRepository.findByEmail(email.toLowerCase());
         if (!user) {
             throw new common_1.NotFoundException('Account profile not found.');
@@ -113,7 +109,9 @@ let AuthService = AuthService_1 = class AuthService {
         else {
             this.logger.warn(`Running in Mock Mode. Simulated password reset in Firebase for: ${email}`);
         }
-        await this.otpService.markOtpCompleted(email.toLowerCase());
+        if (resetPasswordDto.otp) {
+            await this.otpService.markOtpCompleted(email.toLowerCase());
+        }
     }
 };
 exports.AuthService = AuthService;

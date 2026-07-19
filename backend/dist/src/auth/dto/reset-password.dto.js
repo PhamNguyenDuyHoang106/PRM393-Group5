@@ -24,10 +24,9 @@ __decorate([
     __metadata("design:type", String)
 ], ResetPasswordDto.prototype, "email", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: '123456', description: '6-digit numeric verification OTP code' }),
+    (0, swagger_1.ApiPropertyOptional)({ example: '123456', description: 'Verification OTP code (optional)' }),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.Length)(6, 6),
-    (0, class_validator_1.IsNumberString)(),
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], ResetPasswordDto.prototype, "otp", void 0);
 __decorate([

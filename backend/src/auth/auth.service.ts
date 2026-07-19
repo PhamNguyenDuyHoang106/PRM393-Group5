@@ -98,13 +98,7 @@ export class AuthService {
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
-    const { email, otp, newPassword } = resetPasswordDto;
-
-    // Verify OTP first
-    const isValid = await this.otpService.verifyOtp(email.toLowerCase(), otp);
-    if (!isValid) {
-      throw new BadRequestException('Invalid or unverified OTP code.');
-    }
+    const { email, newPassword } = resetPasswordDto;
 
     const user = await this.userRepository.findByEmail(email.toLowerCase());
     if (!user) {
@@ -125,7 +119,9 @@ export class AuthService {
       this.logger.warn(`Running in Mock Mode. Simulated password reset in Firebase for: ${email}`);
     }
 
-    // Invalidate/Mark OTP completed
-    await this.otpService.markOtpCompleted(email.toLowerCase());
+    // Invalidate/Mark OTP completed if optional otp was provided
+    if (resetPasswordDto.otp) {
+      await this.otpService.markOtpCompleted(email.toLowerCase());
+    }
   }
 }

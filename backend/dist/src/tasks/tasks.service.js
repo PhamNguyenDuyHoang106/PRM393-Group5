@@ -31,7 +31,7 @@ let TasksService = class TasksService {
             throw new common_1.ForbiddenException('Only project owners can create tasks.');
         }
         const task = await this.tasksRepo.create({
-            id: crypto.randomUUID(),
+            id: dto.id || crypto.randomUUID(),
             projectId,
             title: dto.title,
             description: dto.description,

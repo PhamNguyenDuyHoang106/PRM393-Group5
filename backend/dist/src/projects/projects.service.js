@@ -25,7 +25,7 @@ let ProjectsService = class ProjectsService {
     }
     async create(dto, ownerId) {
         const project = await this.projectsRepo.create({
-            id: crypto.randomUUID(),
+            id: dto.id || crypto.randomUUID(),
             name: dto.name,
             description: dto.description,
             owner: { connect: { id: ownerId } },

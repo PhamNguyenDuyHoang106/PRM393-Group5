@@ -13,10 +13,17 @@ exports.AddMemberDto = exports.UpdateProjectDto = exports.CreateProjectDto = voi
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class CreateProjectDto {
+    id;
     name;
     description;
 }
 exports.CreateProjectDto = CreateProjectDto;
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'proj_abc123', description: 'Optional project ID (for offline sync)' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateProjectDto.prototype, "id", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ example: 'Smart Task PRM393' }),
     (0, class_validator_1.IsString)(),

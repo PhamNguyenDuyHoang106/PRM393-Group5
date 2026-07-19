@@ -1,4 +1,5 @@
 export declare class CreateProjectDto {
+    id?: string;
     name: string;
     description?: string;
 }
