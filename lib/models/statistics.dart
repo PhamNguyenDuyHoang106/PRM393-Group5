@@ -1,6 +1,7 @@
 class Statistics {
   final int totalProjects;
   final int totalTasks;
+  final int myTasks;
   final int completedTasks;
   final int pendingTasks;
   final int overdueTasks;
@@ -10,6 +11,7 @@ class Statistics {
   Statistics({
     required this.totalProjects,
     required this.totalTasks,
+    this.myTasks = 0,
     required this.completedTasks,
     required this.pendingTasks,
     required this.overdueTasks,
@@ -44,6 +46,7 @@ class Statistics {
   Statistics copyWith({
     int? totalProjects,
     int? totalTasks,
+    int? myTasks,
     int? completedTasks,
     int? pendingTasks,
     int? overdueTasks,
@@ -53,6 +56,7 @@ class Statistics {
     return Statistics(
       totalProjects: totalProjects ?? this.totalProjects,
       totalTasks: totalTasks ?? this.totalTasks,
+      myTasks: myTasks ?? this.myTasks,
       completedTasks: completedTasks ?? this.completedTasks,
       pendingTasks: pendingTasks ?? this.pendingTasks,
       overdueTasks: overdueTasks ?? this.overdueTasks,
@@ -67,17 +71,20 @@ class Statistics {
     return Statistics(
       totalProjects: json['total_projects'] as int? ?? 0,
       totalTasks: json['total_tasks'] as int? ?? 0,
+      myTasks: (json['my_tasks'] ?? json['myTasks']) as int? ?? 0,
       completedTasks: json['completed_tasks'] as int? ?? 0,
       pendingTasks: json['pending_tasks'] as int? ?? 0,
       overdueTasks: json['overdue_tasks'] as int? ?? 0,
       taskStatusDistribution: Map<String, int>.from(
-        (json['task_status_distribution'] as Map<String, dynamic>?)
-                ?.map((k, v) => MapEntry(k, v as int)) ??
+        (json['task_status_distribution'] as Map<String, dynamic>?)?.map(
+              (k, v) => MapEntry(k, v as int),
+            ) ??
             {},
       ),
       taskPriorityDistribution: Map<String, int>.from(
-        (json['task_priority_distribution'] as Map<String, dynamic>?)
-                ?.map((k, v) => MapEntry(k, v as int)) ??
+        (json['task_priority_distribution'] as Map<String, dynamic>?)?.map(
+              (k, v) => MapEntry(k, v as int),
+            ) ??
             {},
       ),
     );
@@ -87,6 +94,7 @@ class Statistics {
     return {
       'total_projects': totalProjects,
       'total_tasks': totalTasks,
+      'my_tasks': myTasks,
       'completed_tasks': completedTasks,
       'pending_tasks': pendingTasks,
       'overdue_tasks': overdueTasks,
@@ -103,16 +111,8 @@ class Statistics {
       completedTasks: 12,
       pendingTasks: 10,
       overdueTasks: 2,
-      taskStatusDistribution: {
-        'TODO': 8,
-        'IN_PROGRESS': 4,
-        'DONE': 12,
-      },
-      taskPriorityDistribution: {
-        'LOW': 10,
-        'MEDIUM': 8,
-        'HIGH': 6,
-      },
+      taskStatusDistribution: {'TODO': 8, 'IN_PROGRESS': 4, 'DONE': 12},
+      taskPriorityDistribution: {'LOW': 10, 'MEDIUM': 8, 'HIGH': 6},
     );
   }
 }

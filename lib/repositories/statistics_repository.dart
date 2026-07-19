@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-
 import '../core/database/db_helper.dart';
 import '../core/network/dio_client.dart';
 import '../models/statistics.dart';
@@ -42,7 +41,8 @@ class DashboardStats {
     totalTasks: (json['totalTasks'] as num?)?.toInt() ?? 0,
     myTasks: (json['myTasks'] as num?)?.toInt() ?? 0,
     completedTasks: (json['completedTasks'] as num?)?.toInt() ?? 0,
-    overallCompletionRate: (json['overallCompletionRate'] as num?)?.toInt() ?? 0,
+    overallCompletionRate:
+        (json['overallCompletionRate'] as num?)?.toInt() ?? 0,
     tasksByStatus: _toIntMap(json['tasksByStatus']),
     tasksByPriority: _toIntMap(json['tasksByPriority']),
     projectStats: (json['projectStats'] as List? ?? [])
@@ -104,7 +104,6 @@ class StatisticsRepository {
 
   final DbHelper _dbHelper;
   final Dio _dio;
-
   Statistics? _cachedStatistics;
   DateTime? _lastFetchTime;
 
@@ -135,11 +134,14 @@ class StatisticsRepository {
         final response = await _dio.get('/statistics/dashboard');
         final raw = _unwrap(response.data);
         if (raw is Map) {
+          final totalTasks = (raw['totalTasks'] as num?)?.toInt() ?? 0;
+          final completedTasks = (raw['completedTasks'] as num?)?.toInt() ?? 0;
           final stats = Statistics(
             totalProjects: (raw['totalProjects'] as num?)?.toInt() ?? 0,
-            totalTasks: (raw['totalTasks'] as num?)?.toInt() ?? 0,
-            completedTasks: (raw['completedTasks'] as num?)?.toInt() ?? 0,
-            pendingTasks: ((raw['totalTasks'] as num?)?.toInt() ?? 0) - ((raw['completedTasks'] as num?)?.toInt() ?? 0),
+            totalTasks: totalTasks,
+            myTasks: (raw['myTasks'] as num?)?.toInt() ?? 0,
+            completedTasks: completedTasks,
+            pendingTasks: totalTasks - completedTasks,
             overdueTasks: 0,
             taskStatusDistribution: _toIntMap(raw['tasksByStatus']),
             taskPriorityDistribution: _toIntMap(raw['tasksByPriority']),
@@ -148,8 +150,8 @@ class StatisticsRepository {
           _lastFetchTime = DateTime.now();
           return stats;
         }
-      } catch (_) {
-        // Fall back to SQLite below.
+      } catch (error) {
+        // Fall back to SQLite below or handle custom exceptions if needed.
       }
     }
 
@@ -166,15 +168,22 @@ class StatisticsRepository {
     }
   }
 
+  void invalidateCache() {
+    _cachedStatistics = null;
+    _lastFetchTime = null;
+  }
+
   // ─── New Method: getDashboard (for StatisticsViewModel / Analytics UI) ────
   Future<DashboardStats> getDashboard() async {
     try {
       final response = await _dio.get('/statistics/dashboard');
       final raw = _unwrap(response.data);
-      if (raw is! Map) return DashboardStats.empty();
+      if (raw is! Map) {
+        throw const FormatException('Invalid dashboard statistics response.');
+      }
       return DashboardStats.fromJson(Map<String, dynamic>.from(raw));
-    } catch (_) {
-      return DashboardStats.empty();
+    } catch (error) {
+      throw _apiException(error, 'Unable to load live dashboard data.');
     }
   }
 
@@ -183,11 +192,29 @@ class StatisticsRepository {
     try {
       final response = await _dio.get('/statistics/projects/$projectId');
       final raw = _unwrap(response.data);
-      if (raw is! Map) return null;
+      if (raw is! Map) {
+        throw const FormatException('Invalid project statistics response.');
+      }
       return ProjectStats.fromJson(Map<String, dynamic>.from(raw));
-    } catch (_) {
-      return null;
+    } catch (error) {
+      throw _apiException(error, 'Unable to load live project statistics.');
     }
+  }
+
+  StatisticsException _apiException(Object error, String fallback) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final message = data['message'];
+        if (message != null && message.toString().trim().isNotEmpty) {
+          return StatisticsException(message.toString());
+        }
+      }
+      if (error.message?.trim().isNotEmpty == true) {
+        return StatisticsException(error.message!.trim());
+      }
+    }
+    return StatisticsException(fallback);
   }
 
   static Map<String, int> _toIntMap(dynamic raw) {
@@ -209,8 +236,13 @@ class StatisticsRepository {
   }
 
   // ─── Legacy Method: invalidateCache ───────────────────────────────────────
-  void invalidateCache() {
-    _cachedStatistics = null;
-    _lastFetchTime = null;
-  }
+}
+
+class StatisticsException implements Exception {
+  const StatisticsException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

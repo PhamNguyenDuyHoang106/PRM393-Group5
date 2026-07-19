@@ -25,9 +25,10 @@ let UsersService = class UsersService {
         return user;
     }
     async findByEmail(email) {
-        const user = await this.userRepository.findByEmail(email);
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await this.userRepository.findByEmail(normalizedEmail);
         if (!user) {
-            throw new common_1.NotFoundException(`User with email ${email} not found.`);
+            throw new common_1.NotFoundException(`User with email ${normalizedEmail} not found.`);
         }
         return user;
     }

@@ -8,7 +8,9 @@ import 'providers.dart';
 
 /// Provider cho SharedPreferences
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError('sharedPreferencesProvider must be overridden in main.dart');
+  throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in main.dart',
+  );
 });
 
 /// Provider cho StatisticsRepository

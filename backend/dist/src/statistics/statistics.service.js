@@ -18,7 +18,8 @@ let StatisticsService = class StatisticsService {
         this.prisma = prisma;
     }
     async getDashboard(userId, role) {
-        const projectFilter = role === 'manager'
+        const isManager = role.toLowerCase() === 'manager';
+        const projectFilter = isManager
             ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
             : { members: { some: { userId } } };
         const projects = await this.prisma.project.findMany({
@@ -29,28 +30,32 @@ let StatisticsService = class StatisticsService {
         if (projectIds.length === 0) {
             return this._emptyStats();
         }
+        const visibleTaskFilter = {
+            projectId: { in: projectIds },
+            ...(isManager ? {} : { assignedTo: userId }),
+        };
         const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks] = await Promise.all([
             this.prisma.task.groupBy({
                 by: ['status'],
-                where: { projectId: { in: projectIds } },
+                where: visibleTaskFilter,
                 _count: { status: true },
             }),
             this.prisma.task.groupBy({
                 by: ['priority'],
-                where: { projectId: { in: projectIds } },
+                where: visibleTaskFilter,
                 _count: { priority: true },
             }),
             this.prisma.task.count({
                 where: { projectId: { in: projectIds }, assignedTo: userId },
             }),
             this.prisma.task.count({
-                where: { projectId: { in: projectIds } },
+                where: visibleTaskFilter,
             }),
         ]);
         const statusMap = this._toMap(tasksByStatus, 'status');
         const priorityMap = this._toMap(tasksByPriority, 'priority');
         const doneCount = statusMap['DONE'] ?? 0;
-        const projectStats = await this._getProjectStats(projectIds);
+        const projectStats = await this._getProjectStats(projectIds, isManager ? undefined : userId);
         return {
             totalProjects: projectIds.length,
             totalTasks,
@@ -74,22 +79,26 @@ let StatisticsService = class StatisticsService {
         const stats = await this._getProjectStats([projectId]);
         return stats[0] ?? this._emptyProjectStats(projectId);
     }
-    async _getProjectStats(projectIds) {
+    async _getProjectStats(projectIds, assignedTo) {
         const projects = await this.prisma.project.findMany({
             where: { id: { in: projectIds } },
             select: { id: true, name: true },
         });
         const results = [];
         for (const project of projects) {
+            const taskFilter = {
+                projectId: project.id,
+                ...(assignedTo == null ? {} : { assignedTo }),
+            };
             const [byStatus, byPriority] = await Promise.all([
                 this.prisma.task.groupBy({
                     by: ['status'],
-                    where: { projectId: project.id },
+                    where: taskFilter,
                     _count: { status: true },
                 }),
                 this.prisma.task.groupBy({
                     by: ['priority'],
-                    where: { projectId: project.id },
+                    where: taskFilter,
                     _count: { priority: true },
                 }),
             ]);

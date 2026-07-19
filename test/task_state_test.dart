@@ -46,4 +46,25 @@ void main() {
     expect(restored.assignedTo, 'member-1');
     expect(restored.dueDate, DateTime.utc(2026, 7, 20));
   });
+
+  test('parses the camelCase task payload returned by the backend', () {
+    final task = Task.fromJson({
+      'id': 'task-api-1',
+      'projectId': 'project-api-1',
+      'title': 'Backend task',
+      'description': 'Loaded from Prisma',
+      'priority': 'high',
+      'status': 'done',
+      'assignedTo': 'member-api-1',
+      'dueDate': '2026-07-25T00:00:00.000Z',
+      'createdAt': '2026-07-20T00:00:00.000Z',
+    });
+
+    expect(task.projectId, 'project-api-1');
+    expect(task.assignedTo, 'member-api-1');
+    expect(task.status, 'DONE');
+    expect(task.priority, 'HIGH');
+    expect(task.dueDate, DateTime.utc(2026, 7, 25));
+    expect(task.createdAt, DateTime.utc(2026, 7, 20));
+  });
 }

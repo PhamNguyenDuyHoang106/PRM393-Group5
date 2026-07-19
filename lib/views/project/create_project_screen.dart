@@ -38,7 +38,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
     super.dispose();
   }
 
-  void _addMemberEmail() {
+  Future<void> _addMemberEmail() async {
     final email = _memberEmailController.text.trim().toLowerCase();
     final currentEmail = ref
         .read(authViewModelProvider)
@@ -58,6 +58,16 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
 
     setState(() => _memberEmailError = error);
     if (error != null) return;
+
+    final validationError = await ref
+        .read(projectViewModelProvider.notifier)
+        .validateMemberEmail(email);
+    if (!mounted) return;
+    if (validationError != null) {
+      setState(() => _memberEmailError = validationError);
+      return;
+    }
+
     setState(() {
       _memberEmails.add(email);
       _memberEmailController.clear();
@@ -78,6 +88,10 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
 
   Future<void> _createProject() async {
     FocusScope.of(context).unfocus();
+    if (_memberEmailController.text.trim().isNotEmpty) {
+      await _addMemberEmail();
+      if (!mounted || _memberEmailError != null) return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final user = ref.read(authViewModelProvider).user;
@@ -124,7 +138,10 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
         title: const Text('Create Project'),
         actions: [
           TextButton(
-            onPressed: projectState.isSubmitting ? null : _resetForm,
+            onPressed:
+                projectState.isSubmitting || projectState.isValidatingMember
+                ? null
+                : _resetForm,
             child: const Text('Reset'),
           ),
         ],
@@ -191,7 +208,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                 icon: Icons.group_add_outlined,
                 title: 'Initial members',
                 subtitle:
-                    'Optional. Accounts are verified when the project is created.',
+                    'Optional. Each account is verified before it is added.',
               ),
               const SizedBox(height: AppConstants.paddingMd),
               TextField(
@@ -200,6 +217,9 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.done,
                 autocorrect: false,
+                enabled:
+                    !projectState.isSubmitting &&
+                    !projectState.isValidatingMember,
                 onSubmitted: (_) => _addMemberEmail(),
                 onChanged: (_) {
                   if (_memberEmailError != null) {
@@ -211,11 +231,21 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                   hintText: 'member@example.com',
                   prefixIcon: const Icon(Icons.alternate_email_rounded),
                   errorText: _memberEmailError,
-                  suffixIcon: IconButton(
-                    tooltip: 'Add email',
-                    onPressed: _addMemberEmail,
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                  ),
+                  suffixIcon: projectState.isValidatingMember
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'Add email',
+                          onPressed: _addMemberEmail,
+                          icon: const Icon(
+                            Icons.add_circle_outline_rounded,
+                          ),
+                        ),
                 ),
               ),
               if (_memberEmails.isNotEmpty) ...[
@@ -228,7 +258,9 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                         (email) => InputChip(
                           avatar: const Icon(Icons.person_outline, size: 18),
                           label: Text(email),
-                          onDeleted: projectState.isSubmitting
+                          onDeleted:
+                              projectState.isSubmitting ||
+                                  projectState.isValidatingMember
                               ? null
                               : () =>
                                     setState(() => _memberEmails.remove(email)),
@@ -244,11 +276,15 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                     : 'Create & Add ${_memberEmails.length} Members',
                 icon: Icons.add_task_rounded,
                 isLoading: projectState.isSubmitting,
-                onPressed: _createProject,
+                onPressed: projectState.isValidatingMember
+                    ? null
+                    : _createProject,
               ),
               const SizedBox(height: AppConstants.paddingSm),
               TextButton(
-                onPressed: projectState.isSubmitting
+                onPressed:
+                    projectState.isSubmitting ||
+                        projectState.isValidatingMember
                     ? null
                     : () => context.pop(),
                 child: const Text('Cancel'),

@@ -77,13 +77,20 @@ class TaskViewModel extends StateNotifier<TaskState> {
   final ConnectivityService _connectivityService;
   final Ref _ref;
 
-  Future<void> loadTasks({String? projectId}) async {
-    state = state.copyWith(isLoadingTasks: true, clearError: true);
+  Future<void> loadTasks({String? projectId, bool requireFresh = false}) async {
+    state = state.copyWith(
+      tasks: requireFresh ? const [] : null,
+      isLoadingTasks: true,
+      clearError: true,
+    );
     try {
-      final tasks = await _repository.getTasks(
-        projectId: projectId,
-        isOnline: _connectivityService.isOnline,
-      );
+      final tasks = projectId == null
+          ? await _loadMyTasks(requireFresh: requireFresh)
+          : await _repository.getTasks(
+              projectId: projectId,
+              isOnline: _connectivityService.isOnline,
+              allowCacheFallback: !requireFresh,
+            );
       state = state.copyWith(tasks: tasks, isLoadingTasks: false);
     } catch (error) {
       state = state.copyWith(
@@ -91,6 +98,18 @@ class TaskViewModel extends StateNotifier<TaskState> {
         errorMessage: _messageFrom(error),
       );
     }
+  }
+
+  Future<List<Task>> _loadMyTasks({required bool requireFresh}) {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      throw const TaskException('You must be logged in.');
+    }
+    return _repository.getMyTasks(
+      isOnline: _connectivityService.isOnline,
+      currentUserId: currentUser.id,
+      allowCacheFallback: !requireFresh,
+    );
   }
 
   Future<void> loadTask(String taskId) async {

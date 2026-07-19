@@ -30,11 +30,12 @@ export class StatisticsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getDashboard(userId: string, role: string): Promise<DashboardStats> {
+    const isManager = role.toLowerCase() === 'manager';
+
     // Determine which projects this user can see
-    const projectFilter =
-      role === 'manager'
-        ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
-        : { members: { some: { userId } } };
+    const projectFilter = isManager
+      ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
+      : { members: { some: { userId } } };
 
     const projects = await this.prisma.project.findMany({
       where: projectFilter,
@@ -47,24 +48,30 @@ export class StatisticsService {
       return this._emptyStats();
     }
 
-    // Aggregate tasks across all accessible projects
+    // Members only see aggregates for tasks assigned to themselves. Managers
+    // keep the project-wide overview for the projects they can access.
+    const visibleTaskFilter = {
+      projectId: { in: projectIds },
+      ...(isManager ? {} : { assignedTo: userId }),
+    };
+
     const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks] =
       await Promise.all([
         this.prisma.task.groupBy({
           by: ['status'],
-          where: { projectId: { in: projectIds } },
+          where: visibleTaskFilter,
           _count: { status: true },
         }),
         this.prisma.task.groupBy({
           by: ['priority'],
-          where: { projectId: { in: projectIds } },
+          where: visibleTaskFilter,
           _count: { priority: true },
         }),
         this.prisma.task.count({
           where: { projectId: { in: projectIds }, assignedTo: userId },
         }),
         this.prisma.task.count({
-          where: { projectId: { in: projectIds } },
+          where: visibleTaskFilter,
         }),
       ]);
 
@@ -73,7 +80,10 @@ export class StatisticsService {
     const doneCount = statusMap['DONE'] ?? 0;
 
     // Per-project breakdown
-    const projectStats = await this._getProjectStats(projectIds);
+    const projectStats = await this._getProjectStats(
+      projectIds,
+      isManager ? undefined : userId,
+    );
 
     return {
       totalProjects: projectIds.length,
@@ -101,7 +111,10 @@ export class StatisticsService {
     return stats[0] ?? this._emptyProjectStats(projectId);
   }
 
-  private async _getProjectStats(projectIds: string[]): Promise<ProjectStats[]> {
+  private async _getProjectStats(
+    projectIds: string[],
+    assignedTo?: string,
+  ): Promise<ProjectStats[]> {
     const projects = await this.prisma.project.findMany({
       where: { id: { in: projectIds } },
       select: { id: true, name: true },
@@ -110,15 +123,19 @@ export class StatisticsService {
     const results: ProjectStats[] = [];
 
     for (const project of projects) {
+      const taskFilter = {
+        projectId: project.id,
+        ...(assignedTo == null ? {} : { assignedTo }),
+      };
       const [byStatus, byPriority] = await Promise.all([
         this.prisma.task.groupBy({
           by: ['status'],
-          where: { projectId: project.id },
+          where: taskFilter,
           _count: { status: true },
         }),
         this.prisma.task.groupBy({
           by: ['priority'],
-          where: { projectId: project.id },
+          where: taskFilter,
           _count: { priority: true },
         }),
       ]);
