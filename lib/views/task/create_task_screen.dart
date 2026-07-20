@@ -29,13 +29,20 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   void initState() {
     super.initState();
     Future.microtask(() async {
+      final currentUserId = ref.read(authViewModelProvider).user?.id;
       final notifier = ref.read(projectViewModelProvider.notifier);
       await notifier.loadProjects();
       if (!mounted) return;
       final projects = ref.read(projectViewModelProvider).projects;
       if (projects.isNotEmpty) {
-        setState(() => _projectId = projects.first.id);
+        setState(() {
+          _projectId = projects.first.id;
+          _assignedTo = currentUserId;
+        });
         await notifier.loadProjectDetails(projects.first.id);
+        if (mounted) _preferAssignToSelf();
+      } else if (currentUserId != null) {
+        setState(() => _assignedTo = currentUserId);
       }
     });
   }
@@ -49,13 +56,30 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
 
   Future<void> _changeProject(String? projectId) async {
     if (projectId == null) return;
+    final currentUserId = ref.read(authViewModelProvider).user?.id;
     setState(() {
       _projectId = projectId;
-      _assignedTo = null;
+      _assignedTo = currentUserId;
     });
     await ref
         .read(projectViewModelProvider.notifier)
         .loadProjectDetails(projectId);
+    if (!mounted) return;
+    _preferAssignToSelf();
+  }
+
+  void _preferAssignToSelf() {
+    final currentUserId = ref.read(authViewModelProvider).user?.id;
+    if (currentUserId == null) return;
+    final details = ref.read(projectViewModelProvider).details;
+    if (details?.project.id != _projectId) return;
+    final members = details!.members;
+    if (members.any((member) => member.id == currentUserId)) {
+      setState(() => _assignedTo = currentUserId);
+    } else if (_assignedTo == null) {
+      // Still default to self so the task appears in My Tasks offline.
+      setState(() => _assignedTo = currentUserId);
+    }
   }
 
   Future<void> _pickDueDate() async {
@@ -72,7 +96,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _projectId == null) return;
     final user = ref.read(authViewModelProvider).user;
-    if (user?.isManager != true) return;
+    if (user == null || !user.isManager) return;
 
     final task = await ref
         .read(taskViewModelProvider.notifier)
@@ -81,7 +105,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
           title: _titleController.text,
           description: _descriptionController.text,
           priority: _priority,
-          assignedTo: _assignedTo,
+          assignedTo: _assignedTo ?? user.id,
           dueDate: _dueDate,
         );
     if (task != null && mounted) {
@@ -113,6 +137,25 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     final members = projectState.details?.project.id == _projectId
         ? projectState.details!.members
         : const <ProjectMember>[];
+    final currentUser = authState.user;
+    final assigneeItems = <DropdownMenuItem<String>>[
+      ...members.map(
+        (member) => DropdownMenuItem(
+          value: member.id,
+          child: Text(member.name),
+        ),
+      ),
+    ];
+    if (currentUser != null &&
+        !assigneeItems.any((item) => item.value == currentUser.id)) {
+      assigneeItems.insert(
+        0,
+        DropdownMenuItem(
+          value: currentUser.id,
+          child: Text('${currentUser.name} (me)'),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create Task')),
@@ -185,19 +228,14 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                 const SizedBox(height: AppConstants.paddingMd),
                 DropdownButtonFormField<String>(
                   key: ValueKey('member-${members.length}-$_assignedTo'),
-                  initialValue: _assignedTo,
+                  initialValue: assigneeItems.any((item) => item.value == _assignedTo)
+                      ? _assignedTo
+                      : null,
                   decoration: const InputDecoration(
                     labelText: 'Assign Member',
                     prefixIcon: Icon(Icons.person_add_alt_1_outlined),
                   ),
-                  items: members
-                      .map(
-                        (member) => DropdownMenuItem(
-                          value: member.id,
-                          child: Text(member.name),
-                        ),
-                      )
-                      .toList(),
+                  items: assigneeItems,
                   onChanged: projectState.isLoadingDetails
                       ? null
                       : (value) => setState(() => _assignedTo = value),

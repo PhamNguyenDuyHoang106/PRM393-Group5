@@ -100,7 +100,11 @@ class TaskRepository {
             .map((json) => Task.fromJson(Map<String, dynamic>.from(json)))
             .toList();
         await _dbHelper.cacheTasks(tasks);
-        return tasks;
+        // Re-read SQLite so locally created tasks are not dropped.
+        return _visibleMyTasks(
+          await _dbHelper.getCachedTasks(),
+          currentUserId,
+        );
       } catch (error) {
         if (!allowCacheFallback || !_isConnectionFailure(error)) {
           throw _apiException(error, 'Unable to load your assigned tasks.');
@@ -112,10 +116,31 @@ class TaskRepository {
         'Unable to load live task data. Check your internet connection.',
       );
     }
-    final cachedTasks = await _dbHelper.getCachedTasks();
-    return cachedTasks
-        .where((task) => task.assignedTo == currentUserId)
-        .toList();
+    return _visibleMyTasks(await _dbHelper.getCachedTasks(), currentUserId);
+  }
+
+  /// Members: tasks assigned to them.
+  /// Managers: assigned tasks + every task in projects they own.
+  Future<List<Task>> _visibleMyTasks(
+    List<Task> tasks,
+    String currentUserId,
+  ) async {
+    final user = await _dbHelper.getCachedUser(currentUserId);
+    final isManager = user?.isManager ?? false;
+    var ownedProjectIds = const <String>{};
+    if (isManager) {
+      final projects = await _dbHelper.getCachedProjects();
+      ownedProjectIds = projects
+          .where((project) => project.ownerId == currentUserId)
+          .map((project) => project.id)
+          .toSet();
+    }
+
+    return tasks.where((task) {
+      if (task.assignedTo == currentUserId) return true;
+      if (isManager && ownedProjectIds.contains(task.projectId)) return true;
+      return false;
+    }).toList();
   }
 
   // ─── GET /tasks/:id ───────────────────────────────────────────────────────

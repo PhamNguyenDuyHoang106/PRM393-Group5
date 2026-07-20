@@ -35,7 +35,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           .loadProjectDetails(widget.projectId),
       ref
           .read(taskViewModelProvider.notifier)
-          .loadTasks(projectId: widget.projectId, requireFresh: true),
+          .loadTasks(projectId: widget.projectId),
     ]);
   }
 
