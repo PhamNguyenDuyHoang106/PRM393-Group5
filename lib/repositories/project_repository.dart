@@ -31,6 +31,7 @@ class ProjectRepository {
   Future<List<Project>> getProjects({
     required bool isOnline,
     bool allowCacheFallback = true,
+    String? currentUserId,
   }) async {
     if (isOnline || !allowCacheFallback) {
       try {
@@ -44,7 +45,7 @@ class ProjectRepository {
             .map((item) => Project.fromJson(Map<String, dynamic>.from(item)))
             .toList();
         await _dbHelper.cacheProjects(projects);
-        return projects;
+        return _filterProjectsForUser(projects, currentUserId);
       } catch (error) {
         if (!allowCacheFallback || !_isConnectionFailure(error)) {
           throw _apiException(error, 'Unable to load projects.');
@@ -56,12 +57,36 @@ class ProjectRepository {
         'Unable to load live project data. Check your internet connection.',
       );
     }
-    final cached = await _dbHelper.getCachedProjects();
-    if (cached.isNotEmpty) return cached;
-    final demo = _buildDemoProject();
-    await _dbHelper.cacheProjects([demo]);
-    await _dbHelper.cacheProjectMembers(demo.id, _buildDemoMembers());
-    return [demo];
+    var cached = await _dbHelper.getCachedProjects();
+    if (cached.isEmpty) {
+      final demo = _buildDemoProject();
+      await _dbHelper.cacheProjects([demo]);
+      await _dbHelper.cacheProjectMembers(demo.id, _buildDemoMembers());
+      cached = [demo];
+    }
+    return _filterProjectsForUser(cached, currentUserId);
+  }
+
+  /// Only show projects the signed-in user owns or belongs to.
+  /// Prevents a brand-new member from inheriting the shared offline demo project.
+  Future<List<Project>> _filterProjectsForUser(
+    List<Project> projects,
+    String? currentUserId,
+  ) async {
+    if (currentUserId == null || currentUserId.isEmpty) return projects;
+
+    final visible = <Project>[];
+    for (final project in projects) {
+      if (project.ownerId == currentUserId) {
+        visible.add(project);
+        continue;
+      }
+      final members = await _dbHelper.getCachedProjectMembers(project.id);
+      if (members.any((member) => member.id == currentUserId)) {
+        visible.add(project);
+      }
+    }
+    return visible;
   }
 
   // ─── GET /projects/:id ────────────────────────────────────────────────────

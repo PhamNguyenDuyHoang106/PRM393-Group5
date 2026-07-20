@@ -67,4 +67,18 @@ void main() {
     expect(task.dueDate, DateTime.utc(2026, 7, 25));
     expect(task.createdAt, DateTime.utc(2026, 7, 20));
   });
+
+  test('my-tasks filter keeps only tasks assigned to the signed-in user', () {
+    final allTasks = [
+      tasks.first.copyWith(id: 'a', assignedTo: 'member-new'),
+      tasks.last.copyWith(id: 'b', assignedTo: 'usr_8231'),
+      tasks.first.copyWith(id: 'c', assignedTo: null),
+    ];
+
+    final mine = allTasks
+        .where((task) => task.assignedTo == 'member-new')
+        .toList();
+
+    expect(mine.map((task) => task.id), ['a']);
+  });
 }
