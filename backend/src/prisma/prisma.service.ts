@@ -12,10 +12,18 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(configService: ConfigService) {
+    // Prefer DIRECT_URL (session mode) at runtime with the pg adapter.
+    // PgBouncer transaction-mode URLs can hang Prisma findUnique/prepared statements.
     const connectionString =
+      configService.get<string>('DIRECT_URL') ||
       configService.get<string>('DATABASE_URL') ||
       'postgresql://postgres:postgres@localhost:5432/smart_task?schema=public';
-    const pool = new Pool({ connectionString });
+    const pool = new Pool({
+      connectionString,
+      max: 5,
+      connectionTimeoutMillis: 8000,
+      idleTimeoutMillis: 10000,
+    });
     const adapter = new PrismaPg(pool);
 
     super({ adapter } as any);

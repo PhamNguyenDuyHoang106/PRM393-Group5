@@ -45,7 +45,10 @@ class ProjectRepository {
             .map((item) => Project.fromJson(Map<String, dynamic>.from(item)))
             .toList();
         await _dbHelper.cacheProjects(projects);
-        return _filterProjectsForUser(projects, currentUserId);
+        // Always read back from SQLite so locally-created offline projects
+        // are not dropped when the API returns a partial/empty list.
+        final cached = await _dbHelper.getCachedProjects();
+        return _filterProjectsForUser(cached, currentUserId);
       } catch (error) {
         if (!allowCacheFallback || !_isConnectionFailure(error)) {
           throw _apiException(error, 'Unable to load projects.');
@@ -128,6 +131,17 @@ class ProjectRepository {
         }
         final project = Project.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheProjects([project]);
+        if (caller != null) {
+          await _dbHelper.addCachedProjectMember(
+            project.id,
+            ProjectMember(
+              id: caller.id,
+              name: caller.name,
+              email: caller.email,
+              role: caller.role,
+            ),
+          );
+        }
         return project;
       } catch (error) {
         if (!_isConnectionFailure(error)) {
@@ -144,6 +158,17 @@ class ProjectRepository {
       createdAt: DateTime.now(),
     );
     await _dbHelper.cacheProjects([project]);
+    if (caller != null) {
+      await _dbHelper.addCachedProjectMember(
+        project.id,
+        ProjectMember(
+          id: caller.id,
+          name: caller.name,
+          email: caller.email,
+          role: caller.role,
+        ),
+      );
+    }
     await _enqueueAction('CREATE_PROJECT', project.toJson());
     return project;
   }

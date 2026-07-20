@@ -28,7 +28,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     Future.microtask(
       () => ref
           .read(taskViewModelProvider.notifier)
-          .loadTasks(projectId: widget.projectId, requireFresh: true),
+          .loadTasks(projectId: widget.projectId),
     );
   }
 
@@ -49,7 +49,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   Future<void> _refresh() {
     return ref
         .read(taskViewModelProvider.notifier)
-        .loadTasks(projectId: widget.projectId, requireFresh: true);
+        .loadTasks(projectId: widget.projectId);
   }
 
   @override
@@ -132,7 +132,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                   ? null
                   : () async {
                       final created = await context.push<bool>('/tasks/create');
-                      if (created == true) await _refresh();
+                      // createTask already upserts; reload from cache-aware API.
+                      if (created == true && mounted) await _refresh();
                     },
               icon: const Icon(Icons.add_rounded),
               label: const Text('New task'),
@@ -166,7 +167,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
               child: EmptyWidget(
                 title: state.tasks.isEmpty ? 'No tasks yet' : 'No tasks found',
                 message: state.tasks.isEmpty
-                    ? 'Tasks assigned to you will appear here.'
+                    ? (widget.projectId == null
+                          ? 'Create a task and assign it to see it here.'
+                          : 'No tasks in this project yet.')
                     : 'Try another search term or status filter.',
                 icon: Icons.task_alt_rounded,
               ),

@@ -30,11 +30,14 @@ class AuthRepository {
         await _dbHelper.updateUserId(oldId: profileByEmail.id, newId: uid);
         profile = profileByEmail.copyWith(id: uid);
       } else {
+        final normalized = email.trim().toLowerCase();
+        final isManager =
+            normalized == 'manager@gmail.com' || normalized.contains('manager');
         profile = User(
           id: uid,
           name: defaultName,
           email: email,
-          role: UserRole.member,
+          role: isManager ? UserRole.manager : UserRole.member,
           createdAt: DateTime.now(),
         );
       }
@@ -113,7 +116,11 @@ class AuthRepository {
           );
 
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.authTokenKey, 'mock_jwt_token_here');
+          final isManagerEmail = email.toLowerCase().contains('manager');
+          await prefs.setString(
+            AppConstants.authTokenKey,
+            isManagerEmail ? 'mock_jwt_manager_token' : 'mock_jwt_member_token',
+          );
           await prefs.setString('logged_user_id', resolvedUser.id);
           return resolvedUser;
         } else {

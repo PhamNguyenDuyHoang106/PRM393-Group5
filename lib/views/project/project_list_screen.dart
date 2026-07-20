@@ -38,9 +38,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   }
 
   Future<void> _refresh() {
-    return ref
-        .read(projectViewModelProvider.notifier)
-        .loadProjects(requireFresh: true);
+    return ref.read(projectViewModelProvider.notifier).loadProjects();
   }
 
   List<Project> _visibleProjects(
@@ -77,7 +75,11 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
 
   Future<void> _openCreate() async {
     final created = await context.push<String>('/projects/create');
-    if (created != null) await _refresh();
+    // createProject already upserts into state; only re-sync quietly so a
+    // partial API response cannot wipe the brand-new local project from UI.
+    if (created != null && mounted) {
+      await ref.read(projectViewModelProvider.notifier).loadProjects();
+    }
   }
 
   Future<void> _openEdit(Project project) async {
@@ -241,11 +243,17 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           ),
           const SizedBox(height: AppConstants.paddingSm),
           if (projects.isEmpty)
-            const SizedBox(
+            SizedBox(
               height: 360,
               child: EmptyWidget(
-                title: 'No matching projects',
-                message: 'Try changing your search or sorting option.',
+                title: state.projects.isEmpty
+                    ? 'No projects yet'
+                    : 'No matching projects',
+                message: state.projects.isEmpty
+                    ? (isManager
+                          ? 'Create a project to get started.'
+                          : 'Projects assigned to you will appear here.')
+                    : 'Try changing your search or sorting option.',
                 icon: Icons.folder_off_outlined,
               ),
             )
