@@ -70,7 +70,7 @@ class ProjectRepository {
     return _filterProjectsForUser(cached, currentUserId);
   }
 
-  /// Only show projects the signed-in user owns or belongs to.
+  /// Only show projects the signed-in user owns, belongs to, or has tasks in.
   /// Prevents a brand-new member from inheriting the shared offline demo project.
   Future<List<Project>> _filterProjectsForUser(
     List<Project> projects,
@@ -78,9 +78,18 @@ class ProjectRepository {
   ) async {
     if (currentUserId == null || currentUserId.isEmpty) return projects;
 
+    final assignedProjectIds = (await _dbHelper.getCachedTasks())
+        .where((task) => task.assignedTo == currentUserId)
+        .map((task) => task.projectId)
+        .toSet();
+
     final visible = <Project>[];
     for (final project in projects) {
       if (project.ownerId == currentUserId) {
+        visible.add(project);
+        continue;
+      }
+      if (assignedProjectIds.contains(project.id)) {
         visible.add(project);
         continue;
       }

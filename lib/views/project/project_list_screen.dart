@@ -53,8 +53,9 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           normalizedQuery.isEmpty ||
           project.name.toLowerCase().contains(normalizedQuery) ||
           project.description.toLowerCase().contains(normalizedQuery);
-      final isOwned = project.ownerId == currentUserId;
-      final matchesRole = isManager ? isOwned : !isOwned;
+      // Manager tab: owned projects only.
+      // Member tab: keep repository scoping (member / assignee / owner fallback).
+      final matchesRole = isManager ? project.ownerId == currentUserId : true;
       return matchesQuery && matchesRole;
     }).toList();
 

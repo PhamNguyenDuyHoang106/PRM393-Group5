@@ -7,7 +7,9 @@ import '../core/database/db_helper.dart';
 import '../core/network/dio_client.dart';
 import '../core/security/permission_service.dart';
 import '../models/pending_action.dart';
+import '../models/project.dart';
 import '../models/task.dart';
+import '../models/user.dart';
 
 class TaskRepository {
   TaskRepository({DbHelper? dbHelper, Dio? dio, Uuid? uuid})
@@ -206,11 +208,19 @@ class TaskRepository {
         }
         final created = Task.fromJson(Map<String, dynamic>.from(raw));
         await _dbHelper.cacheTasks([created]);
+        await _ensureAssigneeIsMember(
+          projectId: created.projectId,
+          assigneeId: created.assignedTo,
+        );
         return created;
       } catch (_) {}
     }
 
     await _dbHelper.cacheTasks([newTask]);
+    await _ensureAssigneeIsMember(
+      projectId: newTask.projectId,
+      assigneeId: newTask.assignedTo,
+    );
     await _enqueueAction('CREATE_TASK', newTask.toJson());
     return newTask;
   }
@@ -267,6 +277,10 @@ class TaskRepository {
           }
           final updated = Task.fromJson(Map<String, dynamic>.from(raw));
           await _dbHelper.cacheTasks([updated]);
+          await _ensureAssigneeIsMember(
+            projectId: updated.projectId,
+            assigneeId: updated.assignedTo,
+          );
           return updated;
         } else {
           // Member status-only update via PATCH /tasks/:id/status
@@ -286,6 +300,10 @@ class TaskRepository {
     }
 
     await _dbHelper.cacheTasks([task]);
+    await _ensureAssigneeIsMember(
+      projectId: task.projectId,
+      assigneeId: task.assignedTo,
+    );
     await _enqueueAction('UPDATE_TASK', task.toJson());
     return task;
   }
@@ -312,6 +330,27 @@ class TaskRepository {
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
+  Future<void> _ensureAssigneeIsMember({
+    required String projectId,
+    required String? assigneeId,
+  }) async {
+    if (assigneeId == null || assigneeId.isEmpty) return;
+
+    final members = await _dbHelper.getCachedProjectMembers(projectId);
+    if (members.any((member) => member.id == assigneeId)) return;
+
+    final user = await _dbHelper.getCachedUser(assigneeId);
+    await _dbHelper.addCachedProjectMember(
+      projectId,
+      ProjectMember(
+        id: assigneeId,
+        name: user?.name ?? 'Member',
+        email: user?.email ?? '',
+        role: user?.role == UserRole.manager ? 'manager' : 'member',
+      ),
+    );
+  }
+
   List<Task> _filterTasks(List<Task> tasks, {String? search, String? status}) {
     final query = search?.trim().toLowerCase() ?? '';
     return tasks.where((task) {
