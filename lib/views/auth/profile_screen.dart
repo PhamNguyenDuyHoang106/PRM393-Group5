@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../app.dart';
+
 import '../../core/constants/app_constants.dart';
 import '../../providers/providers.dart';
 import '../../widgets/custom_button.dart';
@@ -170,8 +170,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authViewModelProvider);
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
+    final settingsState = ref.watch(settingsViewModelProvider);
+    final isDark = settingsState.isDarkMode;
     final currentUser = authState.user;
 
     return Scaffold(
