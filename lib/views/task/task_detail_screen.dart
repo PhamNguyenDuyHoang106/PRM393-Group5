@@ -38,21 +38,38 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final currentUser = ref.watch(authViewModelProvider).user;
     final isManager = currentUser?.isManager == true;
     final isAssigned = task != null && task.assignedTo == currentUser?.id;
-    final canEdit = isManager || isAssigned;
+    final canUpdateStatus = isManager || isAssigned;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task Detail'),
         actions: [
-          if (task != null && canEdit)
+          if (task != null && isManager) ...[
             IconButton(
-              tooltip: isManager ? 'Edit task' : 'Update status',
-              icon: Icon(isManager ? Icons.edit_outlined : Icons.assignment_outlined),
+              tooltip: 'Edit task',
+              icon: const Icon(Icons.edit_outlined),
               onPressed: () => _openEditor(task),
+            ),
+            IconButton(
+              tooltip: 'Delete task',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _openDelete(task),
+            ),
+          ],
+          if (task != null && canUpdateStatus && !isManager)
+            IconButton(
+              tooltip: 'Update status',
+              icon: const Icon(Icons.assignment_outlined),
+              onPressed: () => _openStatus(task),
             ),
         ],
       ),
-      body: _buildBody(state, task, canEdit: canEdit, isManager: isManager),
+      body: _buildBody(
+        state,
+        task,
+        canUpdateStatus: canUpdateStatus,
+        isManager: isManager,
+      ),
     );
   }
 
@@ -61,7 +78,21 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     if (updated == true) await _loadTask();
   }
 
-  Widget _buildBody(TaskState state, Task? task, {required bool canEdit, required bool isManager}) {
+  Future<void> _openStatus(Task task) async {
+    final updated = await context.push<bool>('/tasks/${task.id}/status');
+    if (updated == true) await _loadTask();
+  }
+
+  Future<void> _openDelete(Task task) async {
+    await context.push<bool>('/tasks/${task.id}/delete');
+  }
+
+  Widget _buildBody(
+    TaskState state,
+    Task? task, {
+    required bool canUpdateStatus,
+    required bool isManager,
+  }) {
     if (state.isLoadingDetails && task == null) {
       return const LoadingWidget(message: 'Loading task details...');
     }
@@ -161,13 +192,35 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               ),
             ),
           ),
-          if (canEdit) ...[
+          if (canUpdateStatus || isManager) ...[
             const SizedBox(height: AppConstants.paddingLg),
-            FilledButton.icon(
-              onPressed: () => _openEditor(task),
-              icon: Icon(isManager ? Icons.edit_outlined : Icons.assignment_outlined),
-              label: Text(isManager ? 'Edit Task' : 'Update Status'),
-            ),
+            if (isManager) ...[
+              FilledButton.icon(
+                onPressed: () => _openEditor(task),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit Task'),
+              ),
+              const SizedBox(height: AppConstants.paddingSm),
+              FilledButton.icon(
+                onPressed: () => _openStatus(task),
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('Update Status'),
+              ),
+              const SizedBox(height: AppConstants.paddingSm),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => _openDelete(task),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Delete Task'),
+              ),
+            ] else
+              FilledButton.icon(
+                onPressed: () => _openStatus(task),
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('Update Status'),
+              ),
           ],
         ],
       ),

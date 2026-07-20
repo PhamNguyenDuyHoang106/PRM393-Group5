@@ -17,18 +17,13 @@ import '../../views/task/task_list_screen.dart';
 import '../../views/task/create_task_screen.dart';
 import '../../views/task/task_detail_screen.dart';
 import '../../views/task/edit_task_screen.dart';
+import '../../views/task/update_task_status_screen.dart';
+import '../../views/task/delete_task_screen.dart';
 import '../../views/dashboard/manager_dashboard_screen.dart';
 import '../../views/dashboard/member_home_screen.dart';
 import '../../views/dashboard/statistics_screen.dart';
 import '../../views/dashboard/notification_center_screen.dart';
 import '../../views/dashboard/settings_screen.dart';
-
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
-  debugLabel: 'root',
-);
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(
-  debugLabel: 'shell',
-);
 
 class RouterTransitionNotifier extends ChangeNotifier {
   final Ref _ref;
@@ -49,10 +44,14 @@ final routerTransitionNotifierProvider = Provider<RouterTransitionNotifier>((
 });
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final notifier = ref.watch(routerTransitionNotifierProvider);
+  // Keys live with this GoRouter instance so rebuilds never reuse a disposed key.
+  final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+  final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+  // read (not watch) so auth refreshes go through refreshListenable only.
+  final notifier = ref.read(routerTransitionNotifierProvider);
 
-  return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+  final router = GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/login',
     refreshListenable: notifier,
     redirect: (context, state) {
@@ -87,13 +86,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loggedIn) {
         final isManager = authState.user!.isManager;
 
-        // Define manager-only paths
+        // Define manager-only paths.
+        // Task edit/status stay open so assignees can update progress.
         final isManagerOnlyPath =
             path.startsWith('/manager/dashboard') ||
             path.startsWith('/projects/create') ||
             (path.startsWith('/projects/') && path.endsWith('/members')) ||
+            (path.startsWith('/projects/') && path.endsWith('/edit')) ||
             path.startsWith('/tasks/create') ||
-            path.contains('/edit');
+            (path.startsWith('/tasks/') && path.endsWith('/delete'));
 
         if (isManagerOnlyPath && !isManager) {
           debugPrint('[Router] Redirecting Member from Manager path: $path');
@@ -131,7 +132,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Main Scaffold Shell Routes (Using bottom navigation bar)
       ShellRoute(
-        navigatorKey: _shellNavigatorKey,
+        navigatorKey: shellNavigatorKey,
         builder: (context, state, child) => AppShellScaffold(child: child),
         routes: [
           GoRoute(
@@ -165,22 +166,22 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Sub-screens routed on root navigator (push on top of bottom bar)
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/notifications',
         builder: (context, state) => const NotificationCenterScreen(),
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/stats',
         builder: (context, state) => const StatisticsScreen(),
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/projects/create',
         builder: (context, state) => const CreateProjectScreen(),
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/projects/:projectId',
         builder: (context, state) {
           final projectId = state.pathParameters['projectId'] ?? '';
@@ -188,7 +189,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/projects/:projectId/edit',
         builder: (context, state) {
           final projectId = state.pathParameters['projectId'] ?? '';
@@ -196,7 +197,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/projects/:projectId/members',
         builder: (context, state) {
           final projectId = state.pathParameters['projectId'] ?? '';
@@ -204,28 +205,48 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/tasks/create',
         builder: (context, state) => const CreateTaskScreen(),
       ),
       GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         path: '/tasks/:taskId',
         builder: (context, state) {
           final taskId = state.pathParameters['taskId'] ?? '';
           return TaskDetailScreen(taskId: taskId);
         },
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/tasks/:taskId/edit',
-        builder: (context, state) {
-          final taskId = state.pathParameters['taskId'] ?? '';
-          return EditTaskScreen(taskId: taskId);
-        },
+        routes: [
+          GoRoute(
+            parentNavigatorKey: rootNavigatorKey,
+            path: 'edit',
+            builder: (context, state) {
+              final taskId = state.pathParameters['taskId'] ?? '';
+              return EditTaskScreen(taskId: taskId);
+            },
+          ),
+          GoRoute(
+            parentNavigatorKey: rootNavigatorKey,
+            path: 'status',
+            builder: (context, state) {
+              final taskId = state.pathParameters['taskId'] ?? '';
+              return UpdateTaskStatusScreen(taskId: taskId);
+            },
+          ),
+          GoRoute(
+            parentNavigatorKey: rootNavigatorKey,
+            path: 'delete',
+            builder: (context, state) {
+              final taskId = state.pathParameters['taskId'] ?? '';
+              return DeleteTaskScreen(taskId: taskId);
+            },
+          ),
+        ],
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 // Shell scaffold holding BottomNavigationBar

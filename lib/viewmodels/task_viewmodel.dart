@@ -214,6 +214,35 @@ class TaskViewModel extends StateNotifier<TaskState> {
     }
   }
 
+  Future<bool> deleteTask(String taskId) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in.');
+      return false;
+    }
+
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      await _repository.deleteTask(
+        taskId: taskId,
+        isOnline: _connectivityService.isOnline,
+        currentUserId: currentUser.id,
+      );
+      state = state.copyWith(
+        tasks: state.tasks.where((task) => task.id != taskId).toList(),
+        clearSelectedTask: state.selectedTask?.id == taskId,
+        isSubmitting: false,
+      );
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFrom(error),
+      );
+      return false;
+    }
+  }
+
   void setSearchQuery(String value) {
     state = state.copyWith(searchQuery: value);
   }
