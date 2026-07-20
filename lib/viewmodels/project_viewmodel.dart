@@ -1,10 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/project.dart';
+import '../providers/providers.dart';
 import '../repositories/project_repository.dart';
 import '../services/connectivity_service.dart';
-
-import '../providers/providers.dart';
 
 class ProjectState {
   ProjectState({
@@ -63,9 +62,11 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
       clearError: true,
     );
     try {
+      final currentUserId = _ref.read(authViewModelProvider).user?.id;
       final projects = await _repository.getProjects(
         isOnline: _connectivityService.isOnline,
         allowCacheFallback: !requireFresh,
+        currentUserId: currentUserId,
       );
       state = state.copyWith(projects: projects, isLoadingProjects: false);
     } catch (error) {
