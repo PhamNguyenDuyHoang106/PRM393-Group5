@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/auth_viewmodel.dart';
@@ -67,21 +68,23 @@ class _MemberManagementScreenState
 
     if (success && mounted) {
       _emailController.clear();
+      final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member added successfully.')),
+        SnackBar(content: Text(strings.memberAddedSuccess)),
       );
     }
   }
 
   Future<void> _confirmRemove(ProjectMember member) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final currentUser = ref.read(authViewModelProvider).user;
     final details = ref.read(projectViewModelProvider).details;
     if (member.id == details?.project.ownerId) {
-      _showMessage('The project owner cannot be removed.');
+      _showMessage(strings.ownerCannotBeRemoved);
       return;
     }
     if (member.id == currentUser?.id) {
-      _showMessage('You cannot remove yourself from a project you manage.');
+      _showMessage(strings.cannotRemoveYourself);
       return;
     }
 
@@ -100,20 +103,16 @@ class _MemberManagementScreenState
         context: context,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.assignment_late_outlined),
-          title: const Text('Reassign active tasks first'),
-          content: Text(
-            '${member.name} still has $openTaskCount unfinished '
-            '${openTaskCount == 1 ? 'task' : 'tasks'}. Reassign or finish them '
-            'before removing this member.',
-          ),
+          title: Text(strings.reassignActiveTasksFirst),
+          content: Text(strings.memberHasUnfinishedTasks(member.name, openTaskCount)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Close'),
+              child: Text(strings.close),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('View tasks'),
+              child: Text(strings.viewTasksButton),
             ),
           ],
         ),
@@ -127,22 +126,19 @@ class _MemberManagementScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Remove member?'),
-        content: Text(
-          'Remove ${member.name} from this project? Their account and other '
-          'projects will not be affected.',
-        ),
+        title: Text(strings.removeMemberQuestion),
+        content: Text(strings.removeMemberBody(member.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Remove'),
+            child: Text(strings.remove),
           ),
         ],
       ),
@@ -154,7 +150,7 @@ class _MemberManagementScreenState
         .removeMember(projectId: widget.projectId, userId: member.id);
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${member.name} removed from the project.')),
+        SnackBar(content: Text(strings.memberRemovedMsg(member.name))),
       );
     }
   }
@@ -193,13 +189,14 @@ class _MemberManagementScreenState
   Widget build(BuildContext context) {
     final authState = ref.watch(authViewModelProvider);
     final projectState = ref.watch(projectViewModelProvider);
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final details = projectState.details?.project.id == widget.projectId
         ? projectState.details
         : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Members')),
-      body: _buildBody(authState, projectState, details),
+      appBar: AppBar(title: Text(strings.manageMembersTitle)),
+      body: _buildBody(authState, projectState, details, strings),
     );
   }
 
@@ -207,30 +204,32 @@ class _MemberManagementScreenState
     AuthState authState,
     ProjectState projectState,
     ProjectDetails? details,
+    AppStrings strings,
   ) {
     if (authState.isLoading && authState.user == null) {
-      return const LoadingWidget(message: 'Checking permissions...');
+      return LoadingWidget(message: strings.checkingPermissions);
     }
 
     if (authState.user?.isManager != true) {
-      return const _AccessDenied();
+      return _AccessDenied(strings: strings);
     }
 
     if (projectState.isLoadingDetails && details == null) {
-      return const LoadingWidget(message: 'Loading project members...');
+      return LoadingWidget(message: strings.loadingProjectMembers);
     }
 
     if (details == null) {
       return AppErrorDisplay(
-        title: 'Members unavailable',
-        error: projectState.errorMessage ?? 'Project not found.',
+        title: strings.membersUnavailable,
+        error: projectState.errorMessage ?? strings.projectNotFound,
         onRetry: _loadDetails,
       );
     }
 
     if (details.project.ownerId != authState.user?.id) {
-      return const _AccessDenied(
-        message: 'Only the project owner can manage its members.',
+      return _AccessDenied(
+        strings: strings,
+        message: strings.onlyOwnerCanManageMembers,
       );
     }
 
@@ -250,7 +249,7 @@ class _MemberManagementScreenState
           ),
           const SizedBox(height: AppConstants.paddingXs),
           Text(
-            '${details.members.length} member${details.members.length == 1 ? '' : 's'}',
+            strings.memberCountLabel(details.members.length),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -260,12 +259,12 @@ class _MemberManagementScreenState
             controller: _searchController,
             onChanged: (value) => setState(() => _query = value),
             decoration: InputDecoration(
-              hintText: 'Search members by name or email',
+              hintText: strings.searchMembersHint,
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _query.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: 'Clear search',
+                      tooltip: strings.clearSearch,
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _query = '');
@@ -280,15 +279,15 @@ class _MemberManagementScreenState
               Expanded(
                 child: SegmentedButton<_MemberFilter>(
                   showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: _MemberFilter.all, label: Text('All')),
+                  segments: [
+                    ButtonSegment(value: _MemberFilter.all, label: Text(strings.filterAll)),
                     ButtonSegment(
                       value: _MemberFilter.owner,
-                      label: Text('Owner'),
+                      label: Text(strings.filterOwner),
                     ),
                     ButtonSegment(
                       value: _MemberFilter.members,
-                      label: Text('Members'),
+                      label: Text(strings.filterMembers),
                     ),
                   ],
                   selected: {_filter},
@@ -298,18 +297,18 @@ class _MemberManagementScreenState
                 ),
               ),
               PopupMenuButton<_MemberSort>(
-                tooltip: 'Sort members',
+                tooltip: strings.sortMembersTooltip,
                 initialValue: _sort,
                 onSelected: (value) => setState(() => _sort = value),
                 icon: const Icon(Icons.sort_by_alpha_rounded),
-                itemBuilder: (context) => const [
+                itemBuilder: (context) => [
                   PopupMenuItem(
                     value: _MemberSort.nameAscending,
-                    child: Text('Name A–Z'),
+                    child: Text(strings.sortNameAZ),
                   ),
                   PopupMenuItem(
                     value: _MemberSort.nameDescending,
-                    child: Text('Name Z–A'),
+                    child: Text(strings.sortNameZA),
                   ),
                 ],
               ),
@@ -325,7 +324,7 @@ class _MemberManagementScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Add a member',
+                      strings.addAMember,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -336,21 +335,21 @@ class _MemberManagementScreenState
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Member email',
+                      decoration: InputDecoration(
+                        labelText: strings.memberEmailLabel,
                         hintText: 'member@example.com',
-                        prefixIcon: Icon(Icons.alternate_email_rounded),
+                        prefixIcon: const Icon(Icons.alternate_email_rounded),
                       ),
                       onFieldSubmitted: (_) {
                         if (!projectState.isSubmitting) _addMember();
                       },
                       validator: (value) {
                         final email = value?.trim() ?? '';
-                        if (email.isEmpty) return 'Email is required';
+                        if (email.isEmpty) return strings.emailRequired;
                         if (!RegExp(
                           r"^[\w.!#$%&'*+/=?^_`{|}~-]+@[\w-]+(?:\.[\w-]+)+$",
                         ).hasMatch(email)) {
-                          return 'Enter a valid email address';
+                          return strings.enterValidEmail;
                         }
                         return null;
                       },
@@ -364,7 +363,7 @@ class _MemberManagementScreenState
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.person_add_alt_1_rounded),
-                      label: const Text('Add Member'),
+                      label: Text(strings.addMemberButton),
                     ),
                   ],
                 ),
@@ -373,23 +372,22 @@ class _MemberManagementScreenState
           ),
           if (projectState.errorMessage != null) ...[
             const SizedBox(height: AppConstants.paddingMd),
-            _MemberError(message: projectState.errorMessage!),
+            _MemberError(message: projectState.errorMessage!, strings: strings),
           ],
           const SizedBox(height: AppConstants.paddingLg),
           Text(
-            'Team members',
+            strings.teamMembers,
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppConstants.paddingSm),
           if (visibleMembers.isEmpty)
-            const SizedBox(
+            SizedBox(
               height: 260,
               child: EmptyWidget(
-                title: 'No members found',
-                message:
-                    'Add a member or change the current search and filter.',
+                title: strings.noMembersFound,
+                message: strings.addMemberOrChangeFilter,
                 icon: Icons.group_off_outlined,
               ),
             )
@@ -400,6 +398,7 @@ class _MemberManagementScreenState
                 isOwner: member.id == details.project.ownerId,
                 isBusy: projectState.isSubmitting,
                 onRemove: () => _confirmRemove(member),
+                strings: strings,
               ),
             ),
           const SizedBox(height: AppConstants.paddingLg),
@@ -415,12 +414,14 @@ class _MemberTile extends StatelessWidget {
     required this.isOwner,
     required this.isBusy,
     required this.onRemove,
+    required this.strings,
   });
 
   final ProjectMember member;
   final bool isOwner;
   final bool isBusy;
   final VoidCallback onRemove;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -432,9 +433,9 @@ class _MemberTile extends StatelessWidget {
         subtitle: Text('${member.email}\n${member.role}'),
         isThreeLine: true,
         trailing: isOwner
-            ? const Chip(label: Text('Owner'))
+            ? Chip(label: Text(strings.ownerChip))
             : IconButton(
-                tooltip: 'Remove member',
+                tooltip: strings.removeMemberTooltip,
                 onPressed: isBusy ? null : onRemove,
                 icon: Icon(
                   Icons.person_remove_outlined,
@@ -454,9 +455,10 @@ class _MemberTile extends StatelessWidget {
 }
 
 class _MemberError extends ConsumerWidget {
-  const _MemberError({required this.message});
+  const _MemberError({required this.message, required this.strings});
 
   final String message;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -472,7 +474,7 @@ class _MemberError extends ConsumerWidget {
           const SizedBox(width: AppConstants.paddingSm),
           Expanded(child: Text(message)),
           IconButton(
-            tooltip: 'Dismiss',
+            tooltip: strings.dismiss,
             onPressed: () =>
                 ref.read(projectViewModelProvider.notifier).clearError(),
             icon: const Icon(Icons.close_rounded),
@@ -485,10 +487,12 @@ class _MemberError extends ConsumerWidget {
 
 class _AccessDenied extends StatelessWidget {
   const _AccessDenied({
-    this.message = 'Only managers can add or remove project members.',
+    required this.strings,
+    this.message,
   });
 
-  final String message;
+  final AppStrings strings;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -505,13 +509,16 @@ class _AccessDenied extends StatelessWidget {
             ),
             const SizedBox(height: AppConstants.paddingMd),
             Text(
-              'Manager access required',
+              strings.managerAccessRequired,
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppConstants.paddingSm),
-            Text(message, textAlign: TextAlign.center),
+            Text(
+              message ?? strings.onlyManagersCanAddRemoveMembers,
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

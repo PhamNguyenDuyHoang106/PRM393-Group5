@@ -121,17 +121,19 @@ class StatisticsRepository {
 
   // ─── Legacy Method: getStatistics (for DashboardViewModel compatibility) ───
   Future<Statistics> getStatistics({bool forceRefresh = false, bool isOnline = true, String? dateRange, String? userId, String? role}) async {
-    if ((dateRange != null && dateRange != 'All Time') || userId != null) {
-      return await _dbHelper.getLocalStatistics(dateRange: dateRange, userId: userId, role: role);
-    }
-
-    if (!forceRefresh && _isCacheValid) {
-      return _cachedStatistics!;
-    }
-
+    // Nếu đang online: LUÔN LUÔN gọi API Backend trước (kể cả khi có userId/role).
+    // Backend tự lọc dữ liệu theo user đã đăng nhập (dựa vào JWT token).
     if (isOnline) {
+      // Bỏ qua cache nếu đang forceRefresh hoặc cache đã hết hạn
+      if (!forceRefresh && _isCacheValid && userId == null && dateRange == null) {
+        return _cachedStatistics!;
+      }
       try {
-        final response = await _dio.get('/statistics/dashboard');
+        final range = _normalizeDateRange(dateRange);
+        final response = await _dio.get(
+          '/statistics/dashboard',
+          queryParameters: range == null ? null : {'range': range},
+        );
         final raw = _unwrap(response.data);
         if (raw is Map) {
           final totalTasks = (raw['totalTasks'] as num?)?.toInt() ?? 0;
@@ -151,12 +153,22 @@ class StatisticsRepository {
           return stats;
         }
       } catch (error) {
-        // Fall back to SQLite below or handle custom exceptions if needed.
+        // Log lỗi để debug — API có thể bị 401 Unauthorized hoặc connection timeout
+        // ignore: avoid_print
+        print('[StatisticsRepository] API error: $error');
+        // Không fall-through về local nếu lỗi 401 (token hết hạn)
+        // Ném lỗi để UI hiển thị thông báo rõ ràng thay vì hiện số 0
+        rethrow;
       }
     }
 
+    // Offline hoặc API thất bại → đọc từ SQLite local
     try {
-      final localStats = await _dbHelper.getLocalStatistics(dateRange: dateRange, userId: userId, role: role);
+      final localStats = await _dbHelper.getLocalStatistics(
+        dateRange: dateRange,
+        userId: userId,
+        role: role,
+      );
       _cachedStatistics = localStats;
       _lastFetchTime = DateTime.now();
       return localStats;
@@ -171,6 +183,19 @@ class StatisticsRepository {
   void invalidateCache() {
     _cachedStatistics = null;
     _lastFetchTime = null;
+  }
+
+  /// Maps the UI's segmented-button labels to the backend's `range` query
+  /// value. 'All Time' (or anything unrecognized) means no filter.
+  String? _normalizeDateRange(String? dateRange) {
+    switch (dateRange) {
+      case 'This Week':
+        return 'week';
+      case 'This Month':
+        return 'month';
+      default:
+        return null;
+    }
   }
 
   // ─── New Method: getDashboard (for StatisticsViewModel / Analytics UI) ────

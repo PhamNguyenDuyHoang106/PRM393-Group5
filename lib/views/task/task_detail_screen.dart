@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/task.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/task_viewmodel.dart';
@@ -36,29 +37,30 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         ? state.selectedTask
         : null;
     final currentUser = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final isManager = currentUser?.isManager == true;
     final isAssigned = task != null && task.assignedTo == currentUser?.id;
     final canUpdateStatus = isManager || isAssigned;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task Detail'),
+        title: Text(strings.taskDetailTitle),
         actions: [
           if (task != null && isManager) ...[
             IconButton(
-              tooltip: 'Edit task',
+              tooltip: strings.editTaskTooltip,
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _openEditor(task),
             ),
             IconButton(
-              tooltip: 'Delete task',
+              tooltip: strings.deleteTaskTooltip,
               icon: const Icon(Icons.delete_outline),
               onPressed: () => _openDelete(task),
             ),
           ],
           if (task != null && canUpdateStatus && !isManager)
             IconButton(
-              tooltip: 'Update status',
+              tooltip: strings.updateStatusTooltip,
               icon: const Icon(Icons.assignment_outlined),
               onPressed: () => _openStatus(task),
             ),
@@ -69,6 +71,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         task,
         canUpdateStatus: canUpdateStatus,
         isManager: isManager,
+        strings: strings,
       ),
     );
   }
@@ -92,14 +95,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     Task? task, {
     required bool canUpdateStatus,
     required bool isManager,
+    required AppStrings strings,
   }) {
     if (state.isLoadingDetails && task == null) {
-      return const LoadingWidget(message: 'Loading task details...');
+      return LoadingWidget(message: strings.loadingTaskDetails);
     }
     if (task == null) {
       return AppErrorDisplay(
-        title: 'Task unavailable',
-        error: state.errorMessage ?? 'Task not found.',
+        title: strings.taskUnavailable,
+        error: state.errorMessage ?? strings.taskNotFound,
         onRetry: _loadTask,
       );
     }
@@ -142,8 +146,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _Badge(label: task.priority),
-                    _Badge(label: task.status.replaceAll('_', ' ')),
+                    _Badge(label: strings.categoryLabel(task.priority)),
+                    _Badge(label: strings.categoryLabel(task.status)),
                   ],
                 ),
               ],
@@ -157,35 +161,35 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 children: [
                   _DetailRow(
                     icon: Icons.description_outlined,
-                    label: 'Description',
+                    label: strings.descriptionLabel,
                     value: task.description.isEmpty
-                        ? 'No description provided.'
+                        ? strings.noDescriptionProvided
                         : task.description,
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.folder_outlined,
-                    label: 'Project ID',
+                    label: strings.projectIdLabel,
                     value: task.projectId,
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.person_outline_rounded,
-                    label: 'Assigned to',
-                    value: task.assignedTo ?? 'Unassigned',
+                    label: strings.assignedToLabel,
+                    value: task.assignedTo ?? strings.unassigned,
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.event_outlined,
-                    label: 'Due date',
+                    label: strings.dueDateLabel,
                     value: task.dueDate == null
-                        ? 'No due date'
+                        ? strings.noDueDate
                         : _formatDate(task.dueDate!),
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.schedule_rounded,
-                    label: 'Created',
+                    label: strings.createdLabel,
                     value: _formatDate(task.createdAt),
                   ),
                 ],
@@ -198,13 +202,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               FilledButton.icon(
                 onPressed: () => _openEditor(task),
                 icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit Task'),
+                label: Text(strings.editTaskButton),
               ),
               const SizedBox(height: AppConstants.paddingSm),
               FilledButton.icon(
                 onPressed: () => _openStatus(task),
                 icon: const Icon(Icons.assignment_outlined),
-                label: const Text('Update Status'),
+                label: Text(strings.updateStatusButton),
               ),
               const SizedBox(height: AppConstants.paddingSm),
               OutlinedButton.icon(
@@ -213,13 +217,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 ),
                 onPressed: () => _openDelete(task),
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete Task'),
+                label: Text(strings.deleteTaskButton),
               ),
             ] else
               FilledButton.icon(
                 onPressed: () => _openStatus(task),
                 icon: const Icon(Icons.assignment_outlined),
-                label: const Text('Update Status'),
+                label: Text(strings.updateStatusButton),
               ),
           ],
         ],

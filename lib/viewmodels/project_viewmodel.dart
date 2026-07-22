@@ -155,6 +155,7 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
                   '${failedEmails.join(', ')}',
         clearError: failedEmails.isEmpty,
       );
+      _refreshDashboard();
       return project;
     } catch (error) {
       state = state.copyWith(
@@ -278,6 +279,7 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
             : null,
         isSubmitting: false,
       );
+      _refreshDashboard();
       return project;
     } catch (error) {
       state = state.copyWith(
@@ -309,6 +311,7 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
         clearDetails: state.details?.project.id == projectId,
         isSubmitting: false,
       );
+      _refreshDashboard();
       return true;
     } catch (error) {
       state = state.copyWith(
@@ -321,6 +324,18 @@ class ProjectViewModel extends StateNotifier<ProjectState> {
 
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// Báo cho Dashboard biết dữ liệu project vừa đổi — bỏ cache thống kê cũ
+  /// và tải lại để Dashboard/Statistics phản ánh ngay số liệu mới nhất.
+  void _refreshDashboard() {
+    _ref.read(statisticsRepositoryProvider).invalidateCache();
+    final user = _ref.read(authViewModelProvider).user;
+    if (user != null) {
+      _ref
+          .read(dashboardViewModelProvider.notifier)
+          .refreshData(userId: user.id, role: user.role);
+    }
   }
 
   List<Project> _upsertProject(List<Project> projects, Project project) {

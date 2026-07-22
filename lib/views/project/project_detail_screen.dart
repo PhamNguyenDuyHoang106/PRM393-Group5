@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/project_viewmodel.dart';
@@ -47,6 +48,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
   }
 
   Future<void> _deleteProject(Project project) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -54,21 +56,19 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           Icons.delete_outline_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
         ),
-        title: const Text('Delete project?'),
-        content: Text(
-          'Delete “${project.name}”? Its tasks and member links will also be removed.',
-        ),
+        title: Text(strings.deleteProjectQuestion),
+        content: Text(strings.deleteProjectDetailConfirm(project.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: Text(strings.delete),
           ),
         ],
       ),
@@ -81,7 +81,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     if (!mounted || !deleted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('“${project.name}” deleted.')));
+    ).showSnackBar(SnackBar(content: Text(strings.projectDeletedMsg(project.name))));
     context.go('/projects');
   }
 
@@ -98,9 +98,10 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
   Future<void> _copyProjectId(String id) async {
     await Clipboard.setData(ClipboardData(text: id));
     if (!mounted) return;
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Project ID copied.')));
+    ).showSnackBar(SnackBar(content: Text(strings.projectIdCopied)));
   }
 
   @override
@@ -108,6 +109,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     final state = ref.watch(projectViewModelProvider);
     final taskState = ref.watch(taskViewModelProvider);
     final currentUser = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final details = state.details?.project.id == widget.projectId
         ? state.details
         : null;
@@ -115,17 +117,17 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Project Details'),
+        title: Text(strings.projectDetailsTitle),
         actions: [
           if (isOwner)
             IconButton(
-              tooltip: 'Edit project',
+              tooltip: strings.editProjectTooltip,
               onPressed: state.isSubmitting ? null : _openEditor,
               icon: const Icon(Icons.edit_outlined),
             ),
           if (isOwner && details != null)
             PopupMenuButton<String>(
-              tooltip: 'More actions',
+              tooltip: strings.moreActionsTooltip,
               onSelected: (value) {
                 if (value == 'members') {
                   context.push('/projects/${widget.projectId}/members');
@@ -134,12 +136,12 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'members',
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.manage_accounts_outlined),
-                    title: Text('Manage members'),
+                    leading: const Icon(Icons.manage_accounts_outlined),
+                    title: Text(strings.manageMembers),
                   ),
                 ),
                 PopupMenuItem(
@@ -151,7 +153,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                     title: Text(
-                      'Delete project',
+                      strings.deleteProjectMenuItem,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -162,7 +164,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
             ),
         ],
       ),
-      body: _buildBody(state, details, taskState, isOwner),
+      body: _buildBody(state, details, taskState, isOwner, strings),
     );
   }
 
@@ -171,14 +173,15 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     ProjectDetails? details,
     TaskState taskState,
     bool isOwner,
+    AppStrings strings,
   ) {
     if (state.isLoadingDetails && details == null) {
-      return const LoadingWidget(message: 'Loading project details...');
+      return LoadingWidget(message: strings.loadingProjectDetails);
     }
     if (details == null) {
       return AppErrorDisplay(
-        title: 'Project unavailable',
-        error: state.errorMessage ?? 'Project not found.',
+        title: strings.projectUnavailable,
+        error: state.errorMessage ?? strings.projectNotFound,
         onRetry: _refresh,
       );
     }
@@ -190,7 +193,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppConstants.paddingMd),
         children: [
-          _ProjectHero(project: project),
+          _ProjectHero(project: project, strings: strings),
           const SizedBox(height: AppConstants.paddingMd),
           Card(
             child: Padding(
@@ -199,20 +202,20 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                 children: [
                   _DetailRow(
                     icon: Icons.badge_outlined,
-                    label: 'Project ID',
+                    label: strings.projectIdLabel,
                     value: project.id,
                     onTap: () => _copyProjectId(project.id),
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.calendar_today_outlined,
-                    label: 'Created',
+                    label: strings.createdLabel,
                     value: _formatDate(project.createdAt),
                   ),
                   const Divider(height: AppConstants.paddingLg),
                   _DetailRow(
                     icon: Icons.people_outline_rounded,
-                    label: 'Members',
+                    label: strings.membersLabel,
                     value: '${details.members.length}',
                   ),
                 ],
@@ -221,27 +224,27 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           ),
           const SizedBox(height: AppConstants.paddingLg),
           _SectionTitle(
-            title: 'Task progress',
-            actionLabel: 'View all',
+            title: strings.taskProgress,
+            actionLabel: strings.viewAll,
             onAction: () => _openTasks(null),
           ),
           const SizedBox(height: AppConstants.paddingSm),
-          _buildTaskProgress(taskState),
+          _buildTaskProgress(taskState, strings),
           const SizedBox(height: AppConstants.paddingLg),
           _SectionTitle(
-            title: 'Project members',
-            actionLabel: isOwner ? 'Manage' : null,
+            title: strings.projectMembersSection,
+            actionLabel: isOwner ? strings.manage : null,
             onAction: isOwner
                 ? () => context.push('/projects/${widget.projectId}/members')
                 : null,
           ),
           const SizedBox(height: AppConstants.paddingSm),
           if (details.members.isEmpty)
-            const Card(
+            Card(
               child: Padding(
-                padding: EdgeInsets.all(AppConstants.paddingLg),
+                padding: const EdgeInsets.all(AppConstants.paddingLg),
                 child: Text(
-                  'No member information is available yet.',
+                  strings.noMemberInfoYet,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -256,7 +259,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                     title: Text(member.name),
                     subtitle: Text(member.email),
                     trailing: owner
-                        ? const Chip(label: Text('Owner'))
+                        ? Chip(label: Text(strings.ownerChip))
                         : Text(member.role),
                   );
                 }).toList(),
@@ -266,7 +269,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
           FilledButton.icon(
             onPressed: () => _openTasks(null),
             icon: const Icon(Icons.task_alt_rounded),
-            label: const Text('View Project Tasks'),
+            label: Text(strings.viewProjectTasks),
           ),
           const SizedBox(height: AppConstants.paddingLg),
         ],
@@ -274,20 +277,20 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     );
   }
 
-  Widget _buildTaskProgress(TaskState taskState) {
+  Widget _buildTaskProgress(TaskState taskState, AppStrings strings) {
     if (taskState.isLoadingTasks) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(AppConstants.paddingLg),
+          padding: const EdgeInsets.all(AppConstants.paddingLg),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox.square(
+              const SizedBox.square(
                 dimension: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              SizedBox(width: AppConstants.paddingMd),
-              Text('Loading live task data...'),
+              const SizedBox(width: AppConstants.paddingMd),
+              Text(strings.loadingLiveTaskData),
             ],
           ),
         ),
@@ -314,7 +317,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                   ),
                 ),
               ),
-              TextButton(onPressed: _refresh, child: const Text('Retry')),
+              TextButton(onPressed: _refresh, child: Text(strings.retry)),
             ],
           ),
         ),
@@ -342,25 +345,25 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
       childAspectRatio: 1.7,
       children: [
         _TaskMetric(
-          label: 'All tasks',
+          label: strings.allTasksLabel,
           value: '${tasks.length}',
           color: Theme.of(context).colorScheme.primary,
           onTap: () => _openTasks(null),
         ),
         _TaskMetric(
-          label: 'Completed',
+          label: strings.completedLabel,
           value: '$completion%',
           color: AppConstants.doneColor,
           onTap: () => _openTasks('DONE'),
         ),
         _TaskMetric(
-          label: 'To do',
+          label: strings.toDoLabel,
           value: '$todo',
           color: AppConstants.todoColor,
           onTap: () => _openTasks('TODO'),
         ),
         _TaskMetric(
-          label: 'In progress',
+          label: strings.inProgressLabel,
           value: '$inProgress',
           color: AppConstants.inProgressColor,
           onTap: () => _openTasks('IN_PROGRESS'),
@@ -384,9 +387,10 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
 }
 
 class _ProjectHero extends StatelessWidget {
-  const _ProjectHero({required this.project});
+  const _ProjectHero({required this.project, required this.strings});
 
   final Project project;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +419,7 @@ class _ProjectHero extends StatelessWidget {
           const SizedBox(height: AppConstants.paddingSm),
           Text(
             project.description.isEmpty
-                ? 'No description provided.'
+                ? strings.noDescriptionProvided
                 : project.description,
             style: TextStyle(
               color: Theme.of(context).colorScheme.onPrimaryContainer,

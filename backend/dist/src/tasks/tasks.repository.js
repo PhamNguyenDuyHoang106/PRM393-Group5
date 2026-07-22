@@ -47,6 +47,16 @@ let TasksRepository = class TasksRepository {
             orderBy: { updatedAt: 'desc' },
         });
     }
+    async findByProjectIds(projectIds) {
+        return this.prisma.task.findMany({
+            where: { projectId: { in: projectIds } },
+            include: {
+                assignee: { select: { id: true, name: true, email: true } },
+                project: { select: { id: true, name: true } },
+            },
+            orderBy: { updatedAt: 'desc' },
+        });
+    }
     async update(id, data) {
         return this.prisma.task.update({ where: { id }, data });
     }

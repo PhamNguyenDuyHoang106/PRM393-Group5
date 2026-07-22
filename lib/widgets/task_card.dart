@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../core/constants/app_constants.dart';
+import '../core/localization/app_strings.dart';
 
 class TaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback onTap;
+  final AppStrings? strings;
 
   const TaskCard({
     super.key,
     required this.task,
     required this.onTap,
+    this.strings,
   });
 
   Color _getPriorityColor(String priority) {
@@ -40,6 +43,7 @@ class TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final s = strings ?? const AppStrings(false);
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppConstants.paddingSm),
@@ -73,7 +77,7 @@ class TaskCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      task.priority,
+                      s.categoryLabel(task.priority),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -85,7 +89,7 @@ class TaskCard extends StatelessWidget {
               ),
               const SizedBox(height: AppConstants.paddingSm),
               Text(
-                task.description.isNotEmpty ? task.description : 'No description provided.',
+                task.description.isNotEmpty ? task.description : s.noDescriptionProvided,
                 style: TextStyle(
                   fontSize: 13,
                   color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
@@ -108,7 +112,7 @@ class TaskCard extends StatelessWidget {
                       Text(
                         task.dueDate != null
                             ? '${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}'
-                            : 'No deadline',
+                            : s.noDeadline,
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark ? AppConstants.textSecondaryDark : AppConstants.textSecondaryLight,
@@ -123,7 +127,7 @@ class TaskCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      task.status.replaceAll('_', ' '),
+                      s.categoryLabel(task.status),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

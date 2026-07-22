@@ -29,7 +29,11 @@ export interface DashboardStats {
 export class StatisticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(userId: string, role: string): Promise<DashboardStats> {
+  async getDashboard(
+    userId: string,
+    role: string,
+    range?: string,
+  ): Promise<DashboardStats> {
     const isManager = role.toLowerCase() === 'manager';
 
     // Determine which projects this user can see
@@ -48,11 +52,17 @@ export class StatisticsService {
       return this._emptyStats();
     }
 
+    // Restrict to tasks created since the start of the selected week/month.
+    // Absent (or unrecognized) range keeps the all-time totals.
+    const rangeStart = this._resolveRangeStart(range);
+    const rangeFilter = rangeStart ? { createdAt: { gte: rangeStart } } : {};
+
     // Members only see aggregates for tasks assigned to themselves. Managers
     // keep the project-wide overview for the projects they can access.
     const visibleTaskFilter = {
       projectId: { in: projectIds },
       ...(isManager ? {} : { assignedTo: userId }),
+      ...rangeFilter,
     };
 
     const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks] =
@@ -68,7 +78,7 @@ export class StatisticsService {
           _count: { priority: true },
         }),
         this.prisma.task.count({
-          where: { projectId: { in: projectIds }, assignedTo: userId },
+          where: { projectId: { in: projectIds }, assignedTo: userId, ...rangeFilter },
         }),
         this.prisma.task.count({
           where: visibleTaskFilter,
@@ -160,6 +170,27 @@ export class StatisticsService {
     }
 
     return results;
+  }
+
+  /// Resolves 'week' -> most recent Monday 00:00, 'month' -> first day of the
+  /// current calendar month 00:00. Unknown/absent range -> null (all-time).
+  private _resolveRangeStart(range?: string): Date | null {
+    const now = new Date();
+    switch (range?.toLowerCase()) {
+      case 'week': {
+        const dayIndex = now.getDay(); // 0 (Sun) .. 6 (Sat)
+        const daysSinceMonday = (dayIndex + 6) % 7;
+        return new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - daysSinceMonday,
+        );
+      }
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+      default:
+        return null;
+    }
   }
 
   private _toMap(

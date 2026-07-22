@@ -21,7 +21,7 @@ class SettingsState {
     this.isDarkMode = false,
     this.isPushNotificationEnabled = true,
     this.isNotificationSoundEnabled = true,
-    this.language = 'English',
+    this.language = 'en',
     this.userName = 'Member',
     this.userEmail = '',
     this.userRole = 'Member',
@@ -70,6 +70,9 @@ class SettingsState {
     if (userName.isEmpty) return 'M';
     return userName[0].toUpperCase();
   }
+
+  /// True nếu ngôn ngữ hiện tại là Tiếng Việt.
+  bool get isVietnamese => language == 'vi';
 }
 
 /// ViewModel cho màn Settings.
@@ -87,7 +90,7 @@ class SettingsViewModel extends StateNotifier<SettingsState> {
     final isDark = _prefs.getBool(AppConstants.themeModeKey) ?? false;
     final isPush = _prefs.getBool('push_notifications_enabled') ?? true;
     final isSound = _prefs.getBool('notification_sound_enabled') ?? true;
-    final lang = _prefs.getString('app_language') ?? 'English';
+    final lang = _prefs.getString('app_language') ?? 'en';
     final name = _prefs.getString('cached_user_name') ?? 'Member';
     final email = _prefs.getString('cached_user_email') ?? '';
     final role = _prefs.getString('cached_user_role') ?? 'Member';
@@ -122,6 +125,20 @@ class SettingsViewModel extends StateNotifier<SettingsState> {
     final newValue = !state.isNotificationSoundEnabled;
     state = state.copyWith(isNotificationSoundEnabled: newValue);
     await _prefs.setBool('notification_sound_enabled', newValue);
+  }
+
+  /// Chuyển đổi ngôn ngữ ứng dụng giữa Tiếng Anh ('en') và Tiếng Việt ('vi').
+  Future<void> toggleLanguage() async {
+    final newValue = state.isVietnamese ? 'en' : 'vi';
+    state = state.copyWith(language: newValue);
+    await _prefs.setString('app_language', newValue);
+  }
+
+  /// Đặt ngôn ngữ ứng dụng theo mã cụ thể ('en' hoặc 'vi').
+  Future<void> setLanguage(String languageCode) async {
+    if (languageCode != 'en' && languageCode != 'vi') return;
+    state = state.copyWith(language: languageCode);
+    await _prefs.setString('app_language', languageCode);
   }
 
   /// Xoá toàn bộ dữ liệu cache SQLite.

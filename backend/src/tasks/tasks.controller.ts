@@ -56,7 +56,7 @@ export class TasksController {
   @ApiResponse({ status: 200, description: 'My tasks returned.' })
   @Get('tasks/my')
   async findMyTasks(@CurrentUser() user: any) {
-    return this.tasksService.findMyTasks(user.id);
+    return this.tasksService.findMyTasks(user.id, user.role);
   }
 
   // ── Individual task routes ────────────────────────────────────────────────

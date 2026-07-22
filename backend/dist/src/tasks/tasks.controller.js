@@ -31,7 +31,7 @@ let TasksController = class TasksController {
         return this.tasksService.findAll(projectId, user.id);
     }
     async findMyTasks(user) {
-        return this.tasksService.findMyTasks(user.id);
+        return this.tasksService.findMyTasks(user.id, user.role);
     }
     async findOne(id, user) {
         return this.tasksService.findOne(id, user.id);

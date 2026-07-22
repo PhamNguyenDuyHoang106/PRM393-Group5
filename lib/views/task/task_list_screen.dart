@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/task_viewmodel.dart';
 import '../../widgets/empty_widget.dart';
@@ -56,19 +57,20 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(taskViewModelProvider);
     final canCreate = ref.watch(authViewModelProvider).user?.isManager ?? false;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.projectId == null ? 'My Tasks' : 'Project Tasks'),
+        title: Text(widget.projectId == null ? strings.myTasksTitle : strings.projectTasksTitle),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(112),
+          preferredSize: const Size.fromHeight(160),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Column(
               children: [
                 SearchBar(
                   controller: _searchController,
-                  hintText: 'Search title or description',
+                  hintText: strings.searchTitleOrDescription,
                   leading: const Icon(Icons.search_rounded),
                   elevation: WidgetStateProperty.all(0),
                   onChanged: ref
@@ -77,7 +79,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                   trailing: [
                     if (_searchController.text.isNotEmpty)
                       IconButton(
-                        tooltip: 'Clear search',
+                        tooltip: strings.clearSearch,
                         onPressed: () {
                           _searchController.clear();
                           ref
@@ -96,7 +98,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       _StatusChip(
-                        label: 'All',
+                        label: strings.filterAll,
                         selected: state.statusFilter == null,
                         onSelected: () => ref
                             .read(taskViewModelProvider.notifier)
@@ -110,11 +112,42 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: _StatusChip(
-                            label: status.replaceAll('_', ' '),
+                            label: strings.categoryLabel(status),
                             selected: state.statusFilter == status,
                             onSelected: () => ref
                                 .read(taskViewModelProvider.notifier)
                                 .setStatusFilter(status),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppConstants.paddingSm),
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _StatusChip(
+                        label: strings.filterAll,
+                        selected: state.priorityFilter == null,
+                        onSelected: () => ref
+                            .read(taskViewModelProvider.notifier)
+                            .setPriorityFilter(null),
+                      ),
+                      for (final priority in const [
+                        'LOW',
+                        'MEDIUM',
+                        'HIGH',
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: _StatusChip(
+                            label: strings.categoryLabel(priority),
+                            selected: state.priorityFilter == priority,
+                            onSelected: () => ref
+                                .read(taskViewModelProvider.notifier)
+                                .setPriorityFilter(priority),
                           ),
                         ),
                     ],
@@ -125,7 +158,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
           ),
         ),
       ),
-      body: _buildBody(state),
+      body: _buildBody(state, strings),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: state.isSubmitting
@@ -136,19 +169,19 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                       if (created == true && mounted) await _refresh();
                     },
               icon: const Icon(Icons.add_rounded),
-              label: const Text('New task'),
+              label: Text(strings.newTaskButton),
             )
           : null,
     );
   }
 
-  Widget _buildBody(TaskState state) {
+  Widget _buildBody(TaskState state, AppStrings strings) {
     if (state.isLoadingTasks && state.tasks.isEmpty) {
-      return const LoadingWidget(message: 'Loading tasks...');
+      return LoadingWidget(message: strings.loadingTasks);
     }
     if (state.errorMessage != null && state.tasks.isEmpty) {
       return AppErrorDisplay(
-        title: 'Unable to load tasks',
+        title: strings.unableToLoadTasks,
         error: state.errorMessage!,
         onRetry: _refresh,
       );
@@ -165,12 +198,12 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             SizedBox(
               height: 380,
               child: EmptyWidget(
-                title: state.tasks.isEmpty ? 'No tasks yet' : 'No tasks found',
+                title: state.tasks.isEmpty ? strings.noTasksYet : strings.noTasksFound,
                 message: state.tasks.isEmpty
                     ? (widget.projectId == null
-                          ? 'Create a task and assign it to see it here.'
-                          : 'No tasks in this project yet.')
-                    : 'Try another search term or status filter.',
+                          ? strings.createTaskAndAssign
+                          : strings.noTasksInProject)
+                    : strings.tryAnotherSearchOrFilter,
                 icon: Icons.task_alt_rounded,
               ),
             )
@@ -179,6 +212,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
               (task) => TaskCard(
                 task: task,
                 onTap: () => context.push('/tasks/${task.id}'),
+                strings: strings,
               ),
             ),
         ],

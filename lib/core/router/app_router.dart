@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/providers.dart';
+import '../localization/app_strings.dart';
 
 // Import Screens
 import '../../views/auth/login_screen.dart';
@@ -250,7 +251,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 });
 
 // Shell scaffold holding BottomNavigationBar
-class AppShellScaffold extends StatelessWidget {
+class AppShellScaffold extends ConsumerWidget {
   final Widget child;
 
   const AppShellScaffold({super.key, required this.child});
@@ -285,38 +286,39 @@ class AppShellScaffold extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     return Scaffold(
       body: child,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _calculateSelectedIndex(context),
         onTap: (index) => _onItemTapped(index, context),
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            icon: const Icon(Icons.dashboard_outlined),
+            activeIcon: const Icon(Icons.dashboard),
+            label: strings.navDashboard,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.folder_open_outlined),
-            activeIcon: Icon(Icons.folder),
-            label: 'Projects',
+            icon: const Icon(Icons.folder_open_outlined),
+            activeIcon: const Icon(Icons.folder),
+            label: strings.navProjects,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.task_alt_outlined),
-            activeIcon: Icon(Icons.task_alt),
-            label: 'Tasks',
+            icon: const Icon(Icons.task_alt_outlined),
+            activeIcon: const Icon(Icons.task_alt),
+            label: strings.navTasks,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
+            icon: const Icon(Icons.person_outline),
+            activeIcon: const Icon(Icons.person),
+            label: strings.navProfile,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            activeIcon: const Icon(Icons.settings),
+            label: strings.navSettings,
           ),
         ],
       ),

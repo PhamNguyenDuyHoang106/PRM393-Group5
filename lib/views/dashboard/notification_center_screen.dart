@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/notification_viewmodel.dart';
 import '../../models/notification.dart';
@@ -28,54 +29,55 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
   Widget build(BuildContext context) {
     final state = ref.watch(notificationViewModelProvider);
     final notifier = ref.read(notificationViewModelProvider.notifier);
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(strings.notificationsTitle),
         actions: [
           if (state.unreadCount > 0)
             TextButton.icon(
               icon: const Icon(Icons.done_all, color: Colors.blue),
-              label: const Text('Mark all as read', style: TextStyle(color: Colors.blue)),
+              label: Text(strings.markAllAsRead, style: const TextStyle(color: Colors.blue)),
               onPressed: () => notifier.markAllAsRead(),
             ),
         ],
       ),
       body: Column(
         children: [
-          _buildFilterChips(state, notifier),
+          _buildFilterChips(state, notifier, strings),
           const Divider(height: 1),
           Expanded(
             child: state.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : state.isEmpty
-                    ? _buildEmptyState()
-                    : _buildNotificationsList(state, notifier),
+                    ? _buildEmptyState(strings)
+                    : _buildNotificationsList(state, notifier, strings),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChips(NotificationState state, NotificationViewModel notifier) {
+  Widget _buildFilterChips(NotificationState state, NotificationViewModel notifier, AppStrings strings) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
           FilterChip(
-            label: const Text('All'),
+            label: Text(strings.filterAll),
             selected: state.activeFilter == NotificationFilter.all,
             onSelected: (_) => notifier.setFilter(NotificationFilter.all),
           ),
           const SizedBox(width: 8),
           FilterChip(
-            label: Text('Unread (${state.unreadCount})'),
+            label: Text('${strings.filterUnread} (${state.unreadCount})'),
             selected: state.activeFilter == NotificationFilter.unread,
             onSelected: (_) => notifier.setFilter(NotificationFilter.unread),
           ),
           const SizedBox(width: 8),
           FilterChip(
-            label: const Text('Read'),
+            label: Text(strings.filterRead),
             selected: state.activeFilter == NotificationFilter.read,
             onSelected: (_) => notifier.setFilter(NotificationFilter.read),
           ),
@@ -84,23 +86,23 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
+  Widget _buildEmptyState(AppStrings strings) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.notifications_off_outlined, size: 72, color: Colors.grey),
-          SizedBox(height: 16),
+          const Icon(Icons.notifications_off_outlined, size: 72, color: Colors.grey),
+          const SizedBox(height: 16),
           Text(
-            'No notifications found',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
+            strings.noNotificationsFound,
+            style: const TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNotificationsList(NotificationState state, NotificationViewModel notifier) {
+  Widget _buildNotificationsList(NotificationState state, NotificationViewModel notifier, AppStrings strings) {
     final list = state.filteredNotifications;
 
     return RefreshIndicator(
@@ -128,13 +130,13 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
             onDismissed: (_) {
               notifier.deleteNotification(notif.id);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification deleted')),
+                SnackBar(content: Text(strings.notificationDeleted)),
               );
             },
             child: ListTile(
               onTap: () {
                 notifier.markAsRead(notif);
-                _showNotificationDetailsDialog(context, notif);
+                _showNotificationDetailsDialog(context, notif, strings);
               },
               leading: Icon(
                 notif.readStatus == 1 ? Icons.drafts : Icons.mark_as_unread,
@@ -153,7 +155,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
                   Text(notif.message),
                   const SizedBox(height: 6),
                   Text(
-                    _formatTime(notif.createdAt),
+                    _formatTime(notif.createdAt, strings),
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],
@@ -166,7 +168,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
     );
   }
 
-  void _showNotificationDetailsDialog(BuildContext context, AppNotification notif) {
+  void _showNotificationDetailsDialog(BuildContext context, AppNotification notif, AppStrings strings) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -186,7 +188,7 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
               ),
               const SizedBox(height: 16),
               Text(
-                'Received: ${_formatTime(notif.createdAt)}',
+                strings.receivedAt(_formatTime(notif.createdAt, strings)),
                 style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ],
@@ -195,18 +197,18 @@ class _NotificationCenterScreenState extends ConsumerState<NotificationCenterScr
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(strings.close, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  String _formatTime(DateTime time) {
+  String _formatTime(DateTime time, AppStrings strings) {
     final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
-    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    if (diff.inMinutes < 1) return strings.justNow;
+    if (diff.inMinutes < 60) return strings.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return strings.hoursAgo(diff.inHours);
     return '${time.day}/${time.month}/${time.year}';
   }
 }

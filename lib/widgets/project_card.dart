@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/project.dart';
 import '../core/constants/app_constants.dart';
+import '../core/localization/app_strings.dart';
 
 class ProjectCard extends StatelessWidget {
   final Project project;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final AppStrings? strings;
 
   const ProjectCard({
     super.key,
@@ -14,12 +16,14 @@ class ProjectCard extends StatelessWidget {
     required this.onTap,
     this.onEdit,
     this.onDelete,
+    this.strings,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final s = strings ?? const AppStrings(false);
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppConstants.paddingSm),
@@ -46,7 +50,7 @@ class ProjectCard extends StatelessWidget {
                   ),
                   if (onEdit != null || onDelete != null)
                     PopupMenuButton<_ProjectCardAction>(
-                      tooltip: 'Project actions',
+                      tooltip: s.projectActionsTooltip,
                       padding: EdgeInsets.zero,
                       onSelected: (action) {
                         if (action == _ProjectCardAction.edit) {
@@ -57,12 +61,12 @@ class ProjectCard extends StatelessWidget {
                       },
                       itemBuilder: (context) => [
                         if (onEdit != null)
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: _ProjectCardAction.edit,
                             child: ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.edit_outlined),
-                              title: Text('Edit'),
+                              leading: const Icon(Icons.edit_outlined),
+                              title: Text(s.edit),
                             ),
                           ),
                         if (onDelete != null)
@@ -75,7 +79,7 @@ class ProjectCard extends StatelessWidget {
                                 color: theme.colorScheme.error,
                               ),
                               title: Text(
-                                'Delete',
+                                s.delete,
                                 style: TextStyle(
                                   color: theme.colorScheme.error,
                                 ),
@@ -90,7 +94,7 @@ class ProjectCard extends StatelessWidget {
               Text(
                 project.description.isNotEmpty
                     ? project.description
-                    : 'No description provided.',
+                    : s.noDescriptionProvided,
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark
@@ -112,7 +116,9 @@ class ProjectCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Created on: ${project.createdAt.day}/${project.createdAt.month}/${project.createdAt.year}',
+                    s.createdOnLabel(
+                      '${project.createdAt.day}/${project.createdAt.month}/${project.createdAt.year}',
+                    ),
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark

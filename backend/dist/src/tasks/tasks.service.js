@@ -73,8 +73,15 @@ let TasksService = class TasksService {
         }
         return task;
     }
-    async findMyTasks(userId) {
-        return this.tasksRepo.findByAssignee(userId);
+    async findMyTasks(userId, role) {
+        if (role?.toLowerCase() !== 'manager') {
+            return this.tasksRepo.findByAssignee(userId);
+        }
+        const projects = await this.projectsRepo.findAll(userId);
+        const projectIds = projects.map((project) => project.id);
+        if (projectIds.length === 0)
+            return [];
+        return this.tasksRepo.findByProjectIds(projectIds);
     }
     async update(id, dto, requesterId, requesterRole) {
         const task = await this.tasksRepo.findOne(id);

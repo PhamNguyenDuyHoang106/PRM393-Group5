@@ -17,7 +17,7 @@ let StatisticsService = class StatisticsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async getDashboard(userId, role) {
+    async getDashboard(userId, role, range) {
         const isManager = role.toLowerCase() === 'manager';
         const projectFilter = isManager
             ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
@@ -30,9 +30,12 @@ let StatisticsService = class StatisticsService {
         if (projectIds.length === 0) {
             return this._emptyStats();
         }
+        const rangeStart = this._resolveRangeStart(range);
+        const rangeFilter = rangeStart ? { createdAt: { gte: rangeStart } } : {};
         const visibleTaskFilter = {
             projectId: { in: projectIds },
             ...(isManager ? {} : { assignedTo: userId }),
+            ...rangeFilter,
         };
         const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks] = await Promise.all([
             this.prisma.task.groupBy({
@@ -46,7 +49,7 @@ let StatisticsService = class StatisticsService {
                 _count: { priority: true },
             }),
             this.prisma.task.count({
-                where: { projectId: { in: projectIds }, assignedTo: userId },
+                where: { projectId: { in: projectIds }, assignedTo: userId, ...rangeFilter },
             }),
             this.prisma.task.count({
                 where: visibleTaskFilter,
@@ -120,6 +123,20 @@ let StatisticsService = class StatisticsService {
             });
         }
         return results;
+    }
+    _resolveRangeStart(range) {
+        const now = new Date();
+        switch (range?.toLowerCase()) {
+            case 'week': {
+                const dayIndex = now.getDay();
+                const daysSinceMonday = (dayIndex + 6) % 7;
+                return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
+            }
+            case 'month':
+                return new Date(now.getFullYear(), now.getMonth(), 1);
+            default:
+                return null;
+        }
     }
     _toMap(groups, key) {
         return groups.reduce((acc, g) => {

@@ -60,7 +60,7 @@ export declare class TasksService {
         assignedTo: string | null;
         dueDate: Date | null;
     }>;
-    findMyTasks(userId: string): Promise<({
+    findMyTasks(userId: string, role: string): Promise<({
         project: {
             id: string;
             name: string;

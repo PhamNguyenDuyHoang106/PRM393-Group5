@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../widgets/error_widget.dart';
 
@@ -18,6 +19,7 @@ class MemberHomeScreen extends ConsumerWidget {
     final notificationState = ref.watch(notificationViewModelProvider);
     final isPushEnabled = settingsState.isPushNotificationEnabled;
     final unreadCount = notificationState.unreadCount;
+    final strings = AppStrings(settingsState.isVietnamese);
 
     final projectCount = stats?.totalProjects ?? 0;
     final assignedTasksCount = stats?.myTasks ?? 0;
@@ -37,7 +39,7 @@ class MemberHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smart Task Home'),
+        title: Text(strings.memberHomeTitle),
         actions: [
           IconButton(
             icon: isPushEnabled && unreadCount > 0
@@ -64,7 +66,7 @@ class MemberHomeScreen extends ConsumerWidget {
             ? const Center(child: CircularProgressIndicator())
             : dashboardState.errorMessage != null && stats == null
             ? AppErrorDisplay(
-                title: 'Unable to load your data',
+                title: strings.unableToLoadData,
                 error: dashboardState.errorMessage!,
                 onRetry: () => ref
                     .read(dashboardViewModelProvider.notifier)
@@ -77,7 +79,7 @@ class MemberHomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Good morning, ${user?.name ?? "Member"}!',
+                      strings.greeting(user?.name ?? 'Member'),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -89,7 +91,7 @@ class MemberHomeScreen extends ConsumerWidget {
                         Expanded(
                           child: _buildMetricCard(
                             context,
-                            'My Projects',
+                            strings.myProjects,
                             projectCount.toString(),
                             Icons.folder,
                             Colors.blue,
@@ -100,7 +102,7 @@ class MemberHomeScreen extends ConsumerWidget {
                         Expanded(
                           child: _buildMetricCard(
                             context,
-                            'Tasks Assigned',
+                            strings.tasksAssigned,
                             assignedTasksCount.toString(),
                             Icons.assignment,
                             Colors.amber,
@@ -115,7 +117,7 @@ class MemberHomeScreen extends ConsumerWidget {
                         Expanded(
                           child: _buildMetricCard(
                             context,
-                            'Completed Tasks',
+                            strings.completedTasks,
                             completedTasksCount.toString(),
                             Icons.check_circle,
                             Colors.green,
@@ -128,18 +130,18 @@ class MemberHomeScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Progress Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    strings.progressStatistics,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   TextButton(
                     onPressed: () => context.push('/stats'),
-                    child: const Text('View Charts'),
+                    child: Text(strings.viewCharts),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              _buildOverallProgressBar(assignedTasksCount, completedTasksCount),
+              _buildOverallProgressBar(assignedTasksCount, completedTasksCount, strings),
             ],
           ),
         ),
@@ -147,7 +149,7 @@ class MemberHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildOverallProgressBar(int total, int completed) {
+  Widget _buildOverallProgressBar(int total, int completed, AppStrings strings) {
     final double percentage = total > 0 ? (completed / total) : 0.0;
     return Card(
       elevation: 2,
@@ -160,9 +162,9 @@ class MemberHomeScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Overall Completion Rate',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                Text(
+                  strings.overallCompletionRate,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   '${(percentage * 100).toStringAsFixed(0)}%',
@@ -182,7 +184,7 @@ class MemberHomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '$completed of $total tasks completed',
+              strings.tasksCompletedOf(completed, total),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],

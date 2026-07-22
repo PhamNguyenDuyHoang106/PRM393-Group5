@@ -24,9 +24,10 @@ export interface DashboardStats {
 export declare class StatisticsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    getDashboard(userId: string, role: string): Promise<DashboardStats>;
+    getDashboard(userId: string, role: string, range?: string): Promise<DashboardStats>;
     getProjectStats(projectId: string): Promise<ProjectStats>;
     private _getProjectStats;
+    private _resolveRangeStart;
     private _toMap;
     private _emptyStats;
     private _emptyProjectStats;

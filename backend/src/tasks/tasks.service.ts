@@ -74,8 +74,20 @@ export class TasksService {
     return task;
   }
 
-  async findMyTasks(userId: string) {
-    return this.tasksRepo.findByAssignee(userId);
+  async findMyTasks(userId: string, role: string) {
+    // Members only see tasks assigned to them. Managers see every task across
+    // the projects they own or belong to, mirroring the dashboard aggregation
+    // in StatisticsService.getDashboard — otherwise a manager who assigns work
+    // to teammates (not themselves) would see an empty "My Tasks" list.
+    if (role?.toLowerCase() !== 'manager') {
+      return this.tasksRepo.findByAssignee(userId);
+    }
+
+    const projects = await this.projectsRepo.findAll(userId);
+    const projectIds = projects.map((project) => project.id);
+    if (projectIds.length === 0) return [];
+
+    return this.tasksRepo.findByProjectIds(projectIds);
   }
 
   async update(id: string, dto: UpdateTaskDto, requesterId: string, requesterRole: string) {

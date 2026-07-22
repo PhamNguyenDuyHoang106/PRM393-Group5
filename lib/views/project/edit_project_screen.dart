@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/project_viewmodel.dart';
@@ -98,14 +99,16 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
         );
     if (!mounted || updated == null) return;
     _hydrate(updated);
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Project changes saved.')));
+    ).showSnackBar(SnackBar(content: Text(strings.projectChangesSaved)));
     _allowPop = true;
     context.pop(true);
   }
 
   Future<void> _delete(Project project) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -113,22 +116,19 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           Icons.delete_forever_outlined,
           color: Theme.of(dialogContext).colorScheme.error,
         ),
-        title: const Text('Delete project permanently?'),
-        content: Text(
-          '“${project.name}” and all related tasks will be deleted. '
-          'This action cannot be undone.',
-        ),
+        title: Text(strings.deleteProjectPermanentlyQuestion),
+        content: Text(strings.deleteProjectPermanentlyBody(project.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Keep project'),
+            child: Text(strings.keepProject),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete permanently'),
+            child: Text(strings.deletePermanently),
           ),
         ],
       ),
@@ -142,27 +142,26 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
     _allowPop = true;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('“${project.name}” deleted.')));
+    ).showSnackBar(SnackBar(content: Text(strings.projectDeletedMsg(project.name))));
     context.go('/projects');
   }
 
   Future<bool> _confirmDiscard() async {
     if (!_hasChanges) return true;
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('Discard changes?'),
-            content: const Text(
-              'You have unsaved project changes. Leave without saving them?',
-            ),
+            title: Text(strings.discardChangesQuestion),
+            content: Text(strings.discardChangesBody),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Keep editing'),
+                child: Text(strings.keepEditing),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Discard'),
+                child: Text(strings.discard),
               ),
             ],
           ),
@@ -180,6 +179,7 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(projectViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final details = state.details?.project.id == widget.projectId
         ? state.details
         : null;
@@ -201,33 +201,33 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Edit Project'),
+          title: Text(strings.editProjectTitle),
           actions: [
             if (canEdit)
               TextButton(
                 onPressed: state.isSubmitting || !_hasChanges ? null : _reset,
-                child: const Text('Reset'),
+                child: Text(strings.reset),
               ),
           ],
         ),
-        body: _buildBody(state, details, canEdit),
+        body: _buildBody(state, details, canEdit, strings),
       ),
     );
   }
 
-  Widget _buildBody(ProjectState state, ProjectDetails? details, bool canEdit) {
+  Widget _buildBody(ProjectState state, ProjectDetails? details, bool canEdit, AppStrings strings) {
     if (state.isLoadingDetails && details == null) {
-      return const LoadingWidget(message: 'Loading project...');
+      return LoadingWidget(message: strings.loadingProject);
     }
     if (details == null) {
       return AppErrorDisplay(
-        title: 'Project unavailable',
-        error: state.errorMessage ?? 'Project not found.',
+        title: strings.projectUnavailable,
+        error: state.errorMessage ?? strings.projectNotFound,
         onRetry: _loadProject,
       );
     }
     if (!canEdit) {
-      return const _EditAccessDenied();
+      return _EditAccessDenied(strings: strings);
     }
 
     return Form(
@@ -254,15 +254,15 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Update project details',
+                      strings.updateProjectDetails,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       _hasChanges
-                          ? 'Unsaved changes'
-                          : 'Everything is up to date',
+                          ? strings.unsavedChanges
+                          : strings.everythingUpToDate,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: _hasChanges
                             ? Theme.of(context).colorScheme.primary
@@ -278,6 +278,7 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           if (state.errorMessage != null) ...[
             _EditError(
               message: state.errorMessage!,
+              strings: strings,
               onDismiss: () =>
                   ref.read(projectViewModelProvider.notifier).clearError(),
             ),
@@ -287,15 +288,15 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
             controller: _nameController,
             maxLength: 100,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Project name',
-              prefixIcon: Icon(Icons.drive_file_rename_outline_rounded),
+            decoration: InputDecoration(
+              labelText: strings.projectNameLabel,
+              prefixIcon: const Icon(Icons.drive_file_rename_outline_rounded),
             ),
             validator: (value) {
               final name = value?.trim() ?? '';
-              if (name.isEmpty) return 'Project name is required';
+              if (name.isEmpty) return strings.projectNameRequired;
               if (name.length < 3) {
-                return 'Project name must be at least 3 characters';
+                return strings.projectNameMinLength;
               }
               return null;
             },
@@ -308,11 +309,11 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
             maxLength: 500,
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
-              labelText: 'Description',
-              hintText: 'Describe the project goals and scope',
+              labelText: strings.descriptionLabel,
+              hintText: strings.describeProjectHint,
               alignLabelWithHint: true,
               suffixIcon: IconButton(
-                tooltip: 'Clear description',
+                tooltip: strings.clearDescriptionTooltip,
                 onPressed: state.isSubmitting
                     ? null
                     : _descriptionController.clear,
@@ -324,10 +325,8 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.manage_accounts_outlined),
-              title: const Text('Project members'),
-              subtitle: Text(
-                '${details.members.length} people in this project',
-              ),
+              title: Text(strings.projectMembersSection),
+              subtitle: Text(strings.peopleInProject(details.members.length)),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: state.isSubmitting
                   ? null
@@ -336,7 +335,7 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           ),
           const SizedBox(height: AppConstants.paddingLg),
           CustomButton(
-            text: 'Save Changes',
+            text: strings.saveChanges,
             icon: Icons.save_outlined,
             isLoading: state.isSubmitting,
             onPressed: _hasChanges ? _save : null,
@@ -344,13 +343,13 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           const SizedBox(height: AppConstants.paddingSm),
           OutlinedButton(
             onPressed: state.isSubmitting ? null : _cancel,
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
           const SizedBox(height: AppConstants.paddingXl),
           const Divider(),
           const SizedBox(height: AppConstants.paddingMd),
           Text(
-            'Danger zone',
+            strings.dangerZone,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Theme.of(context).colorScheme.error,
               fontWeight: FontWeight.w700,
@@ -358,7 +357,7 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
           ),
           const SizedBox(height: AppConstants.paddingXs),
           Text(
-            'Deleting a project also removes its task and member links.',
+            strings.deletingProjectAlsoRemoves,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: AppConstants.paddingMd),
@@ -371,7 +370,7 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
                 ? null
                 : () => _delete(details.project),
             icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Delete Project'),
+            label: Text(strings.deleteProjectButton),
           ),
           const SizedBox(height: AppConstants.paddingLg),
         ],
@@ -381,10 +380,11 @@ class _EditProjectScreenState extends ConsumerState<EditProjectScreen> {
 }
 
 class _EditError extends StatelessWidget {
-  const _EditError({required this.message, required this.onDismiss});
+  const _EditError({required this.message, required this.onDismiss, required this.strings});
 
   final String message;
   final VoidCallback onDismiss;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -400,7 +400,7 @@ class _EditError extends StatelessWidget {
           const SizedBox(width: AppConstants.paddingSm),
           Expanded(child: Text(message)),
           IconButton(
-            tooltip: 'Dismiss',
+            tooltip: strings.dismiss,
             onPressed: onDismiss,
             icon: const Icon(Icons.close_rounded),
           ),
@@ -411,7 +411,9 @@ class _EditError extends StatelessWidget {
 }
 
 class _EditAccessDenied extends StatelessWidget {
-  const _EditAccessDenied();
+  const _EditAccessDenied({required this.strings});
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -428,12 +430,12 @@ class _EditAccessDenied extends StatelessWidget {
             ),
             const SizedBox(height: AppConstants.paddingMd),
             Text(
-              'Owner access required',
+              strings.ownerAccessRequired,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppConstants.paddingSm),
-            const Text(
-              'Only the project owner can edit or delete this project.',
+            Text(
+              strings.onlyOwnerCanEditOrDelete,
               textAlign: TextAlign.center,
             ),
           ],

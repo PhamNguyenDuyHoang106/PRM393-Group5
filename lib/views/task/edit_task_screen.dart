@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../models/task.dart';
 import '../../providers/providers.dart';
@@ -99,9 +100,10 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
         .read(taskViewModelProvider.notifier)
         .updateTask(updated);
     if (result != null && mounted) {
+      final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Task updated.')));
+      ).showSnackBar(SnackBar(content: Text(strings.taskUpdatedMsg)));
       context.pop(true);
     }
   }
@@ -111,6 +113,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
     final taskState = ref.watch(taskViewModelProvider);
     final projectState = ref.watch(projectViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final task = taskState.selectedTask?.id == widget.taskId
         ? taskState.selectedTask
         : null;
@@ -121,8 +124,8 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Task')),
-      body: _buildBody(taskState, projectState, user?.isManager == true),
+      appBar: AppBar(title: Text(strings.editTaskTitle)),
+      body: _buildBody(taskState, projectState, user?.isManager == true, strings),
     );
   }
 
@@ -130,14 +133,15 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
     TaskState taskState,
     ProjectState projectState,
     bool isManager,
+    AppStrings strings,
   ) {
     if ((taskState.isLoadingDetails || !_initialized) && _task == null) {
-      return const LoadingWidget(message: 'Loading task...');
+      return LoadingWidget(message: strings.loadingTask);
     }
     if (_task == null) {
       return AppErrorDisplay(
-        title: 'Task unavailable',
-        error: taskState.errorMessage ?? 'Task not found.',
+        title: strings.taskUnavailable,
+        error: taskState.errorMessage ?? strings.taskNotFound,
         onRetry: _load,
       );
     }
@@ -165,20 +169,18 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
                       AppConstants.borderRadiusMd,
                     ),
                   ),
-                  child: const Text(
-                    'Members can update task status. Other fields are manager-only.',
-                  ),
+                  child: Text(strings.membersCanUpdateStatusNote),
                 ),
               TextFormField(
                 controller: _titleController,
                 enabled: isManager,
-                decoration: const InputDecoration(
-                  labelText: 'Task Name',
-                  prefixIcon: Icon(Icons.task_outlined),
+                decoration: InputDecoration(
+                  labelText: strings.taskNameLabel,
+                  prefixIcon: const Icon(Icons.task_outlined),
                 ),
                 validator: (value) {
                   if ((value?.trim().length ?? 0) < 3) {
-                    return 'Task name must be at least 3 characters';
+                    return strings.taskNameMinLength;
                   }
                   return null;
                 },
@@ -190,23 +192,25 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
                 minLines: 3,
                 maxLines: 6,
                 maxLength: 500,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
+                decoration: InputDecoration(
+                  labelText: strings.descriptionLabel,
                   alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.notes_rounded),
+                  prefixIcon: const Icon(Icons.notes_rounded),
                 ),
               ),
               const SizedBox(height: AppConstants.paddingMd),
               DropdownButtonFormField<String>(
                 initialValue: _priority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  prefixIcon: Icon(Icons.flag_outlined),
+                decoration: InputDecoration(
+                  labelText: strings.priorityLabel,
+                  prefixIcon: const Icon(Icons.flag_outlined),
                 ),
-                items: const ['LOW', 'MEDIUM', 'HIGH']
+                items: ['LOW', 'MEDIUM', 'HIGH']
                     .map(
-                      (value) =>
-                          DropdownMenuItem(value: value, child: Text(value)),
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(strings.categoryLabel(value)),
+                      ),
                     )
                     .toList(),
                 onChanged: isManager
@@ -216,15 +220,15 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
               const SizedBox(height: AppConstants.paddingMd),
               DropdownButtonFormField<String>(
                 initialValue: _status,
-                decoration: const InputDecoration(
-                  labelText: 'Status',
-                  prefixIcon: Icon(Icons.change_circle_outlined),
+                decoration: InputDecoration(
+                  labelText: strings.statusLabel,
+                  prefixIcon: const Icon(Icons.change_circle_outlined),
                 ),
-                items: const ['TODO', 'IN_PROGRESS', 'DONE']
+                items: ['TODO', 'IN_PROGRESS', 'DONE']
                     .map(
                       (value) => DropdownMenuItem(
                         value: value,
-                        child: Text(value.replaceAll('_', ' ')),
+                        child: Text(strings.categoryLabel(value)),
                       ),
                     )
                     .toList(),
@@ -236,14 +240,14 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
                 DropdownButtonFormField<String>(
                   key: ValueKey('assignee-${members.length}-$_assignedTo'),
                   initialValue: assigneeExists ? _assignedTo! : '',
-                  decoration: const InputDecoration(
-                    labelText: 'Assign Member',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  decoration: InputDecoration(
+                    labelText: strings.assignMember,
+                    prefixIcon: const Icon(Icons.person_outline_rounded),
                   ),
                   items: [
-                    const DropdownMenuItem<String>(
+                    DropdownMenuItem<String>(
                       value: '',
-                      child: Text('Unassigned'),
+                      child: Text(strings.unassigned),
                     ),
                     ...members.map(
                       (member) => DropdownMenuItem<String>(
@@ -263,18 +267,18 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
                   onTap: _pickDueDate,
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: 'Due Date',
+                      labelText: strings.dueDateLabel,
                       prefixIcon: const Icon(Icons.event_outlined),
                       suffixIcon: _dueDate == null
                           ? null
                           : IconButton(
-                              tooltip: 'Clear due date',
+                              tooltip: strings.clearDueDateTooltip,
                               onPressed: () => setState(() => _dueDate = null),
                               icon: const Icon(Icons.close_rounded),
                             ),
                     ),
                     child: Text(
-                      _dueDate == null ? 'No due date' : _formatDate(_dueDate!),
+                      _dueDate == null ? strings.noDueDate : _formatDate(_dueDate!),
                     ),
                   ),
                 ),
@@ -288,7 +292,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
               ],
               const SizedBox(height: AppConstants.paddingLg),
               CustomButton(
-                text: 'Update Task',
+                text: strings.updateTaskButton,
                 icon: Icons.save_outlined,
                 isLoading: taskState.isSubmitting,
                 onPressed: _save,

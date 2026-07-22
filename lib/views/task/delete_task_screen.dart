@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/task.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/task_viewmodel.dart';
@@ -32,11 +33,10 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
   }
 
   Future<void> _delete(Task task) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     if (!_confirmed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Confirm deletion before continuing.'),
-        ),
+        SnackBar(content: Text(strings.confirmDeletionFirst)),
       );
       return;
     }
@@ -48,7 +48,7 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
 
     if (deleted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('“${task.title}” deleted.')),
+        SnackBar(content: Text(strings.taskDeletedMsg(task.title))),
       );
       context.go('/tasks');
       return;
@@ -56,7 +56,7 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
 
     final error = ref.read(taskViewModelProvider).errorMessage;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error ?? 'Could not delete task.')),
+      SnackBar(content: Text(error ?? strings.couldNotDeleteTask)),
     );
   }
 
@@ -64,14 +64,15 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(taskViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final task = state.selectedTask?.id == widget.taskId
         ? state.selectedTask
         : null;
     final isManager = user?.isManager == true;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Delete Task')),
-      body: _buildBody(state, task, isManager: isManager),
+      appBar: AppBar(title: Text(strings.deleteTaskTitle)),
+      body: _buildBody(state, task, isManager: isManager, strings: strings),
     );
   }
 
@@ -79,21 +80,22 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
     TaskState state,
     Task? task, {
     required bool isManager,
+    required AppStrings strings,
   }) {
     if (state.isLoadingDetails && task == null) {
-      return const LoadingWidget(message: 'Loading task...');
+      return LoadingWidget(message: strings.loadingTask);
     }
     if (task == null) {
       return AppErrorDisplay(
-        title: 'Task unavailable',
-        error: state.errorMessage ?? 'Task not found.',
+        title: strings.taskUnavailable,
+        error: state.errorMessage ?? strings.taskNotFound,
         onRetry: _load,
       );
     }
     if (!isManager) {
-      return const AppErrorDisplay(
-        title: 'Access denied',
-        error: 'Only managers can delete tasks.',
+      return AppErrorDisplay(
+        title: strings.accessDenied,
+        error: strings.onlyManagersCanDeleteTasks,
       );
     }
 
@@ -106,15 +108,14 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
           Icon(Icons.delete_forever_outlined, size: 56, color: scheme.error),
           const SizedBox(height: AppConstants.paddingMd),
           Text(
-            'Delete this task permanently?',
+            strings.deleteTaskPermanentlyQuestion,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: AppConstants.paddingSm),
           Text(
-            'This action cannot be undone. Related offline sync entries for '
-            'this task will also be cleared.',
+            strings.deleteTaskPermanentlyBody,
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppConstants.paddingLg),
@@ -129,9 +130,9 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text('Status: ${task.status.replaceAll('_', ' ')}'),
-                  Text('Priority: ${task.priority}'),
-                  Text('Assignee: ${task.assignedTo ?? 'Unassigned'}'),
+                  Text(strings.statusColonLabel(strings.categoryLabel(task.status))),
+                  Text(strings.priorityColonLabel(strings.categoryLabel(task.priority))),
+                  Text(strings.assigneeColonLabel(task.assignedTo ?? strings.unassigned)),
                 ],
               ),
             ),
@@ -141,7 +142,7 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
             value: _confirmed,
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('I understand this task will be deleted forever.'),
+            title: Text(strings.iUnderstandDeleteForever),
             onChanged: state.isSubmitting
                 ? null
                 : (value) => setState(() => _confirmed = value ?? false),
@@ -171,12 +172,12 @@ class _DeleteTaskScreenState extends ConsumerState<DeleteTaskScreen> {
                     ),
                   )
                 : const Icon(Icons.delete_forever_outlined),
-            label: Text(state.isSubmitting ? 'Deleting...' : 'Delete permanently'),
+            label: Text(state.isSubmitting ? strings.deletingEllipsis : strings.deletePermanently),
           ),
           const SizedBox(height: AppConstants.paddingSm),
           OutlinedButton(
             onPressed: state.isSubmitting ? null : () => context.pop(false),
-            child: const Text('Keep task'),
+            child: Text(strings.keepTask),
           ),
         ],
       ),

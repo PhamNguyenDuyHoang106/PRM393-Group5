@@ -12,6 +12,7 @@ class TaskState {
     this.selectedTask,
     this.searchQuery = '',
     this.statusFilter,
+    this.priorityFilter,
     this.isLoadingTasks = false,
     this.isLoadingDetails = false,
     this.isSubmitting = false,
@@ -22,6 +23,7 @@ class TaskState {
   final Task? selectedTask;
   final String searchQuery;
   final String? statusFilter;
+  final String? priorityFilter;
   final bool isLoadingTasks;
   final bool isLoadingDetails;
   final bool isSubmitting;
@@ -35,7 +37,9 @@ class TaskState {
           task.title.toLowerCase().contains(query) ||
           task.description.toLowerCase().contains(query);
       final matchesStatus = statusFilter == null || task.status == statusFilter;
-      return matchesQuery && matchesStatus;
+      final matchesPriority =
+          priorityFilter == null || task.priority == priorityFilter;
+      return matchesQuery && matchesStatus && matchesPriority;
     }).toList();
   }
 
@@ -46,6 +50,8 @@ class TaskState {
     String? searchQuery,
     String? statusFilter,
     bool clearStatusFilter = false,
+    String? priorityFilter,
+    bool clearPriorityFilter = false,
     bool? isLoadingTasks,
     bool? isLoadingDetails,
     bool? isSubmitting,
@@ -61,6 +67,9 @@ class TaskState {
       statusFilter: clearStatusFilter
           ? null
           : (statusFilter ?? this.statusFilter),
+      priorityFilter: clearPriorityFilter
+          ? null
+          : (priorityFilter ?? this.priorityFilter),
       isLoadingTasks: isLoadingTasks ?? this.isLoadingTasks,
       isLoadingDetails: isLoadingDetails ?? this.isLoadingDetails,
       isSubmitting: isSubmitting ?? this.isSubmitting,
@@ -175,6 +184,7 @@ class TaskViewModel extends StateNotifier<TaskState> {
         selectedTask: task,
         isSubmitting: false,
       );
+      _refreshDashboard();
       return task;
     } catch (error) {
       state = state.copyWith(
@@ -204,6 +214,7 @@ class TaskViewModel extends StateNotifier<TaskState> {
         selectedTask: updated,
         isSubmitting: false,
       );
+      _refreshDashboard();
       return updated;
     } catch (error) {
       state = state.copyWith(
@@ -233,6 +244,7 @@ class TaskViewModel extends StateNotifier<TaskState> {
         clearSelectedTask: state.selectedTask?.id == taskId,
         isSubmitting: false,
       );
+      _refreshDashboard();
       return true;
     } catch (error) {
       state = state.copyWith(
@@ -253,8 +265,26 @@ class TaskViewModel extends StateNotifier<TaskState> {
         : state.copyWith(statusFilter: value);
   }
 
+  void setPriorityFilter(String? value) {
+    state = value == null
+        ? state.copyWith(clearPriorityFilter: true)
+        : state.copyWith(priorityFilter: value);
+  }
+
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// Báo cho Dashboard biết dữ liệu task vừa đổi — bỏ cache thống kê cũ
+  /// và tải lại để Dashboard/Statistics phản ánh ngay số liệu mới nhất.
+  void _refreshDashboard() {
+    _ref.read(statisticsRepositoryProvider).invalidateCache();
+    final user = _ref.read(authViewModelProvider).user;
+    if (user != null) {
+      _ref
+          .read(dashboardViewModelProvider.notifier)
+          .refreshData(userId: user.id, role: user.role);
+    }
   }
 
   List<Task> _upsert(List<Task> tasks, Task task) {

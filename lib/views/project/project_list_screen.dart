@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/project_viewmodel.dart';
@@ -89,6 +90,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   }
 
   Future<void> _confirmDelete(Project project) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -96,22 +98,19 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           Icons.delete_outline_rounded,
           color: Theme.of(dialogContext).colorScheme.error,
         ),
-        title: const Text('Delete project?'),
-        content: Text(
-          '“${project.name}” and its cached tasks will be removed. '
-          'This action cannot be undone.',
-        ),
+        title: Text(strings.deleteProjectQuestion),
+        content: Text(strings.deleteProjectConfirm(project.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(dialogContext).colorScheme.error,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: Text(strings.delete),
           ),
         ],
       ),
@@ -125,7 +124,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     if (deleted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('“${project.name}” deleted.')));
+      ).showSnackBar(SnackBar(content: Text(strings.projectDeletedMsg(project.name))));
     }
   }
 
@@ -142,36 +141,37 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     final projectState = ref.watch(projectViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
     final canCreateProject = user?.isManager ?? false;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(canCreateProject ? 'Managed Projects' : 'My Projects'),
+        title: Text(canCreateProject ? strings.managedProjects : strings.myProjects),
         actions: [
           IconButton(
-            tooltip: 'Refresh projects',
+            tooltip: strings.refreshProjectsTooltip,
             onPressed: projectState.isLoadingProjects ? null : _refresh,
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-      body: _buildBody(projectState, user?.id, canCreateProject),
+      body: _buildBody(projectState, user?.id, canCreateProject, strings),
       floatingActionButton: canCreateProject
           ? FloatingActionButton.extended(
               onPressed: projectState.isSubmitting ? null : _openCreate,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('New project'),
+              label: Text(strings.newProject),
             )
           : null,
     );
   }
 
-  Widget _buildBody(ProjectState state, String? currentUserId, bool isManager) {
+  Widget _buildBody(ProjectState state, String? currentUserId, bool isManager, AppStrings strings) {
     if (state.isLoadingProjects && state.projects.isEmpty) {
-      return const LoadingWidget(message: 'Loading projects...');
+      return LoadingWidget(message: strings.loadingProjects);
     }
     if (state.errorMessage != null && state.projects.isEmpty) {
       return AppErrorDisplay(
-        title: 'Unable to load projects',
+        title: strings.unableToLoadProjects,
         error: state.errorMessage!,
         onRetry: _refresh,
       );
@@ -193,12 +193,12 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
             controller: _searchController,
             onChanged: (value) => setState(() => _query = value),
             decoration: InputDecoration(
-              hintText: 'Search projects',
+              hintText: strings.searchProjects,
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _query.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: 'Clear search',
+                      tooltip: strings.clearSearch,
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _query = '');
@@ -213,8 +213,8 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               Expanded(
                 child: Text(
                   isManager
-                      ? 'Projects you manage'
-                      : 'Projects you participate in',
+                      ? strings.projectsYouManage
+                      : strings.projectsYouParticipateIn,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -223,6 +223,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               _ProjectSortButton(
                 sort: _sort,
                 onChanged: (value) => setState(() => _sort = value),
+                strings: strings,
               ),
             ],
           ),
@@ -234,12 +235,12 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           Row(
             children: [
               Text(
-                '${projects.length} ${projects.length == 1 ? 'project' : 'projects'}',
+                strings.projectCountLabel(projects.length),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               const Spacer(),
               if (_query.isNotEmpty || _sort != _ProjectSort.newest)
-                TextButton(onPressed: _resetView, child: const Text('Reset')),
+                TextButton(onPressed: _resetView, child: Text(strings.reset)),
             ],
           ),
           const SizedBox(height: AppConstants.paddingSm),
@@ -248,13 +249,13 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               height: 360,
               child: EmptyWidget(
                 title: state.projects.isEmpty
-                    ? 'No projects yet'
-                    : 'No matching projects',
+                    ? strings.noProjectsYet
+                    : strings.noMatchingProjects,
                 message: state.projects.isEmpty
                     ? (isManager
-                          ? 'Create a project to get started.'
-                          : 'Projects assigned to you will appear here.')
-                    : 'Try changing your search or sorting option.',
+                          ? strings.createProjectToStart
+                          : strings.projectsAssignedWillAppear)
+                    : strings.tryChangingSearchOrSort,
                 icon: Icons.folder_off_outlined,
               ),
             )
@@ -266,6 +267,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
                 onTap: () => context.push('/projects/${project.id}'),
                 onEdit: isOwner ? () => _openEdit(project) : null,
                 onDelete: isOwner ? () => _confirmDelete(project) : null,
+                strings: strings,
               );
             }),
         ],
@@ -275,33 +277,34 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
 }
 
 class _ProjectSortButton extends StatelessWidget {
-  const _ProjectSortButton({required this.sort, required this.onChanged});
+  const _ProjectSortButton({required this.sort, required this.onChanged, required this.strings});
 
   final _ProjectSort sort;
   final ValueChanged<_ProjectSort> onChanged;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
     final label = switch (sort) {
-      _ProjectSort.newest => 'Newest',
-      _ProjectSort.oldest => 'Oldest',
-      _ProjectSort.nameAscending => 'Name A–Z',
-      _ProjectSort.nameDescending => 'Name Z–A',
+      _ProjectSort.newest => strings.sortNewestFirst,
+      _ProjectSort.oldest => strings.sortOldestFirst,
+      _ProjectSort.nameAscending => strings.sortNameAZ,
+      _ProjectSort.nameDescending => strings.sortNameZA,
     };
     return PopupMenuButton<_ProjectSort>(
-      tooltip: 'Sort projects',
+      tooltip: strings.sortProjectsTooltip,
       initialValue: sort,
       onSelected: onChanged,
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: _ProjectSort.newest, child: Text('Newest first')),
-        PopupMenuItem(value: _ProjectSort.oldest, child: Text('Oldest first')),
+      itemBuilder: (context) => [
+        PopupMenuItem(value: _ProjectSort.newest, child: Text(strings.sortNewestFirst)),
+        PopupMenuItem(value: _ProjectSort.oldest, child: Text(strings.sortOldestFirst)),
         PopupMenuItem(
           value: _ProjectSort.nameAscending,
-          child: Text('Name A–Z'),
+          child: Text(strings.sortNameAZ),
         ),
         PopupMenuItem(
           value: _ProjectSort.nameDescending,
-          child: Text('Name Z–A'),
+          child: Text(strings.sortNameZA),
         ),
       ],
       child: Chip(

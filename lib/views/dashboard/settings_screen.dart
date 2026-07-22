@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
-import '../../viewmodels/settings_viewmodel.dart';
-
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -15,6 +13,7 @@ class SettingsScreen extends ConsumerWidget {
     final settingsNotifier = ref.read(settingsViewModelProvider.notifier);
     final authUser = ref.watch(authViewModelProvider).user;
     final isDark = settingsState.isDarkMode;
+    final strings = AppStrings(settingsState.isVietnamese);
 
     // Automatically sync user profile info from Auth VM
     if (settingsState.userEmail.isEmpty && authUser != null) {
@@ -30,9 +29,9 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text(
-          'Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          strings.settingsTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -41,22 +40,22 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         children: [
-          _buildUserProfileHeader(settingsState, isDark),
+          _buildUserProfileHeader(authUser, isDark),
           const SizedBox(height: 24),
-          
-          _buildSectionHeader('PREFERENCES'),
+
+          _buildSectionHeader(strings.sectionPreferences),
           _buildSettingsGroup(
             isDark: isDark,
             children: [
               SwitchListTile(
                 title: Text(
-                  'Dark Mode',
+                  strings.darkMode,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Adjust application color theme'),
+                subtitle: Text(strings.darkModeSubtitle),
                 secondary: Icon(
                   Icons.dark_mode_rounded,
                   color: isDark ? Colors.cyanAccent : Colors.indigo,
@@ -67,23 +66,40 @@ class SettingsScreen extends ConsumerWidget {
                 },
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          _buildSectionHeader('NOTIFICATIONS'),
-          _buildSettingsGroup(
-            isDark: isDark,
-            children: [
-              SwitchListTile(
+              const Divider(height: 1, indent: 56),
+              ListTile(
+                leading: Icon(
+                  Icons.language_rounded,
+                  color: isDark ? Colors.cyanAccent : Colors.indigo,
+                ),
                 title: Text(
-                  'Push Notifications',
+                  strings.language,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Receive warnings for task deadlines'),
+                subtitle: Text(strings.languageSubtitle),
+                trailing: _buildLanguageSwitch(settingsState.isVietnamese, settingsNotifier, isDark),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          _buildSectionHeader(strings.sectionNotifications),
+          _buildSettingsGroup(
+            isDark: isDark,
+            children: [
+              SwitchListTile(
+                title: Text(
+                  strings.pushNotifications,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                subtitle: Text(strings.pushNotificationsSubtitle),
                 secondary: const Icon(Icons.notifications_active_rounded, color: Colors.blueAccent),
                 value: settingsState.isPushNotificationEnabled,
                 onChanged: (val) => settingsNotifier.togglePushNotifications(),
@@ -92,13 +108,13 @@ class SettingsScreen extends ConsumerWidget {
               const Divider(height: 1, indent: 56),
               SwitchListTile(
                 title: Text(
-                  'Notification Sounds',
+                  strings.notificationSounds,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Play sound on new alerts'),
+                subtitle: Text(strings.notificationSoundsSubtitle),
                 secondary: const Icon(Icons.volume_up_rounded, color: Colors.green),
                 value: settingsState.isNotificationSoundEnabled,
                 onChanged: (val) => settingsNotifier.toggleNotificationSound(),
@@ -108,76 +124,55 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          _buildSectionHeader('SYSTEM & DATA'),
+          _buildSectionHeader(strings.sectionSystemData),
           _buildSettingsGroup(
             isDark: isDark,
             children: [
               ListTile(
                 leading: const Icon(Icons.cleaning_services_rounded, color: Colors.amber),
                 title: Text(
-                  'Clear Local Cache',
+                  strings.clearLocalCache,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Wipe offline SQLite database data'),
+                subtitle: Text(strings.clearLocalCacheSubtitle),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _showClearCacheDialog(context, settingsNotifier, isDark),
+                onTap: () => _showClearCacheDialog(context, settingsNotifier, isDark, strings),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
               const Divider(height: 1, indent: 56),
               ListTile(
                 leading: const Icon(Icons.description_rounded, color: Colors.indigoAccent),
                 title: Text(
-                  'Terms & Privacy Policy',
+                  strings.termsAndPrivacy,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Read terms of service and privacy rules'),
+                subtitle: Text(strings.termsAndPrivacySubtitle),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _showTermsDialog(context, isDark),
+                onTap: () => _showTermsDialog(context, isDark, strings),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
               const Divider(height: 1, indent: 56),
               ListTile(
                 leading: const Icon(Icons.info_rounded, color: Colors.teal),
                 title: Text(
-                  'About Application',
+                  strings.aboutApp,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF1E293B),
                   ),
                 ),
-                subtitle: const Text('Smart Task Management v1.0.0 (PRM393 MVP)'),
+                subtitle: Text(strings.aboutAppSubtitle),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _showAboutDialog(context, isDark),
+                onTap: () => _showAboutDialog(context, isDark, strings),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
             ],
-          ),
-          const SizedBox(height: 32),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent.shade400,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 2,
-                shadowColor: Colors.redAccent.withAlpha(76),
-              ),
-              icon: const Icon(Icons.logout_rounded, size: 20),
-              label: const Text(
-                'Log Out Account',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              onPressed: () => _showLogoutDialog(context, ref, isDark),
-            ),
           ),
           const SizedBox(height: 16),
         ],
@@ -185,12 +180,34 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildUserProfileHeader(SettingsState settingsState, bool isDark) {
+  Widget _buildLanguageSwitch(bool isVietnamese, dynamic settingsNotifier, bool isDark) {
+    return SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment<bool>(value: false, label: Text('EN')),
+        ButtonSegment<bool>(value: true, label: Text('VI')),
+      ],
+      selected: {isVietnamese},
+      showSelectedIcon: false,
+      onSelectionChanged: (selection) {
+        settingsNotifier.setLanguage(selection.first ? 'vi' : 'en');
+      },
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Widget _buildUserProfileHeader(dynamic authUser, bool isDark) {
+    final name = authUser?.name ?? 'User';
+    final email = authUser?.email ?? '';
+    final role = authUser?.role ?? 'member';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark 
-              ? [const Color(0xFF1E293B), const Color(0xFF334155)] 
+          colors: isDark
+              ? [const Color(0xFF1E293B), const Color(0xFF334155)]
               : [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -217,10 +234,10 @@ class SettingsScreen extends ConsumerWidget {
               radius: 32,
               backgroundColor: Colors.white,
               child: Text(
-                settingsState.avatarInitial,
+                initial,
                 style: TextStyle(
-                  fontSize: 24, 
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFF4F46E5), 
+                  fontSize: 24,
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFF4F46E5),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -232,18 +249,18 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  settingsState.userName,
+                  name,
                   style: const TextStyle(
-                    fontSize: 18, 
-                    fontWeight: FontWeight.bold, 
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  settingsState.userEmail,
+                  email,
                   style: const TextStyle(
-                    fontSize: 13, 
+                    fontSize: 13,
                     color: Colors.white70,
                   ),
                 ),
@@ -255,10 +272,10 @@ class SettingsScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Text(
-                    settingsState.userRole.toUpperCase(),
+                    role.toUpperCase(),
                     style: const TextStyle(
-                      fontSize: 11, 
-                      color: Colors.white, 
+                      fontSize: 11,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
                     ),
@@ -278,8 +295,8 @@ class SettingsScreen extends ConsumerWidget {
       child: Text(
         title,
         style: const TextStyle(
-          fontSize: 12, 
-          fontWeight: FontWeight.bold, 
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
           color: Color(0xFF64748B),
           letterSpacing: 1.2,
         ),
@@ -304,24 +321,24 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showClearCacheDialog(BuildContext context, settingsNotifier, bool isDark) {
+  void _showClearCacheDialog(BuildContext context, dynamic settingsNotifier, bool isDark, AppStrings strings) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Wipe Local Cache?',
+          strings.wipeCacheTitle,
           style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B)),
         ),
         content: Text(
-          'This action will delete all offline cached database tables (notifications, pending sync queues). Server data remains untouched.',
+          strings.wipeCacheContent,
           style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            child: Text(strings.cancel, style: const TextStyle(color: Colors.grey)),
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
@@ -330,63 +347,28 @@ class SettingsScreen extends ConsumerWidget {
               await settingsNotifier.clearCache();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('SQLite cache has been cleared successfully!'),
+                  SnackBar(
+                    content: Text(strings.cacheClearedSuccess),
                     backgroundColor: Colors.green,
                   ),
                 );
               }
             },
-            child: const Text('Clear Cache', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(strings.clearCache, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref, bool isDark) {
+  void _showTermsDialog(BuildContext context, bool isDark, AppStrings strings) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Log Out Account?',
-          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF1E293B)),
-        ),
-        content: Text(
-          'You will need to input your email and password to log in next time.',
-          style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await ref.read(authViewModelProvider.notifier).logout();
-              if (context.mounted) {
-                context.go('/login');
-              }
-            },
-            child: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTermsDialog(BuildContext context, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Terms & Privacy Policy',
+          strings.termsTitle,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : const Color(0xFF1E293B),
@@ -396,7 +378,7 @@ class SettingsScreen extends ConsumerWidget {
           child: ListBody(
             children: [
               Text(
-                '1. Terms of Use',
+                strings.termsSection1Title,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.cyanAccent : Colors.blue,
@@ -404,12 +386,12 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'By using the Smart Task Management application, you agree to comply with our policies and rules regarding task and project data.',
+                strings.termsSection1Body,
                 style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
               ),
               const SizedBox(height: 12),
               Text(
-                '2. Data Privacy',
+                strings.termsSection2Title,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.cyanAccent : Colors.blue,
@@ -417,12 +399,12 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Your task data is stored securely in your offline SQLite database and is only synchronized when you connect to our authorized network services.',
+                strings.termsSection2Body,
                 style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
               ),
               const SizedBox(height: 12),
               Text(
-                '3. Policy Updates',
+                strings.termsSection3Title,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.cyanAccent : Colors.blue,
@@ -430,7 +412,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'We reserve the right to modify these terms. Continued usage of the application implies consent to all revisions.',
+                strings.termsSection3Body,
                 style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
               ),
             ],
@@ -439,21 +421,21 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Agree & Close', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(strings.agreeAndClose, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showAboutDialog(BuildContext context, bool isDark) {
+  void _showAboutDialog(BuildContext context, bool isDark, AppStrings strings) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'About Application',
+          strings.aboutTitle,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : const Color(0xFF1E293B),
@@ -477,7 +459,7 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Center(
                 child: Text(
-                  'Smart Task Management',
+                  strings.aboutAppName,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -488,13 +470,13 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 4),
               Center(
                 child: Text(
-                  'Version 1.0.0 (PRM393 MVP)',
+                  strings.aboutVersion,
                   style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600, fontSize: 13),
                 ),
               ),
               const Divider(height: 24),
               Text(
-                'This application is built for the PRM393 course project to provide offline-first task tracking, statistics visualization, and sync capabilities.',
+                strings.aboutDescription,
                 style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, height: 1.4),
               ),
             ],
@@ -503,7 +485,7 @@ class SettingsScreen extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(strings.close, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

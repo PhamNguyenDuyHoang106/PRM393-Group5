@@ -19,9 +19,15 @@ const pg_1 = require("pg");
 let PrismaService = PrismaService_1 = class PrismaService extends client_1.PrismaClient {
     logger = new common_1.Logger(PrismaService_1.name);
     constructor(configService) {
-        const connectionString = configService.get('DATABASE_URL') ||
+        const connectionString = configService.get('DIRECT_URL') ||
+            configService.get('DATABASE_URL') ||
             'postgresql://postgres:postgres@localhost:5432/smart_task?schema=public';
-        const pool = new pg_1.Pool({ connectionString });
+        const pool = new pg_1.Pool({
+            connectionString,
+            max: 5,
+            connectionTimeoutMillis: 8000,
+            idleTimeoutMillis: 10000,
+        });
         const adapter = new adapter_pg_1.PrismaPg(pool);
         super({ adapter });
     }

@@ -46,13 +46,21 @@ class AppNotification {
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      title: json['title'] as String,
-      message: json['message'] as String,
-      readStatus: json['read_status'] as int? ?? 0,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: json['id'].toString(),
+      userId: (json['user_id'] ?? json['userId'] ?? '').toString(),
+      title: json['title']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      readStatus: _parseReadStatus(json['read_status'] ?? json['readStatus']),
+      createdAt: DateTime.parse(
+        (json['created_at'] ?? json['createdAt']).toString(),
+      ),
     );
+  }
+
+  static int _parseReadStatus(dynamic raw) {
+    if (raw is bool) return raw ? 1 : 0;
+    if (raw is num) return raw.toInt();
+    return 0;
   }
 
   bool get isRead => readStatus == 1;

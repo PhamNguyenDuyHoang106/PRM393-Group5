@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 
 class ManagerDashboardScreen extends ConsumerWidget {
@@ -17,6 +18,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
     final notificationState = ref.watch(notificationViewModelProvider);
     final isPushEnabled = settingsState.isPushNotificationEnabled;
     final unreadCount = notificationState.unreadCount;
+    final strings = AppStrings(settingsState.isVietnamese);
 
     final projectCount = stats?.totalProjects ?? 0;
     final totalTasksCount = stats?.totalTasks ?? 0;
@@ -36,7 +38,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smart Task Dashboard'),
+        title: Text(strings.managerDashboardTitle),
         actions: [
           IconButton(
             icon: isPushEnabled && unreadCount > 0
@@ -68,7 +70,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good morning, ${user?.name ?? "Manager"}!',
+                strings.greeting(user?.name ?? 'Manager'),
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
@@ -77,7 +79,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                   Expanded(
                     child: _buildMetricCard(
                       context,
-                      'Total Projects',
+                      strings.totalProjects,
                       projectCount.toString(),
                       Icons.folder,
                       Colors.blue,
@@ -88,7 +90,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                   Expanded(
                     child: _buildMetricCard(
                       context,
-                      'Total Tasks',
+                      strings.totalTasks,
                       totalTasksCount.toString(),
                       Icons.assignment,
                       Colors.amber,
@@ -103,7 +105,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
                   Expanded(
                     child: _buildMetricCard(
                       context,
-                      'Completed Tasks',
+                      strings.completedTasks,
                       completedTasksCount.toString(),
                       Icons.check_circle,
                       Colors.green,
@@ -116,18 +118,18 @@ class ManagerDashboardScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Progress Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    strings.progressStatistics,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   TextButton(
                     onPressed: () => context.push('/stats'),
-                    child: const Text('View Charts'),
+                    child: Text(strings.viewCharts),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              _buildOverallProgressBar(totalTasksCount, completedTasksCount),
+              _buildOverallProgressBar(totalTasksCount, completedTasksCount, strings),
             ],
           ),
         ),
@@ -135,7 +137,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildOverallProgressBar(int total, int completed) {
+  Widget _buildOverallProgressBar(int total, int completed, AppStrings strings) {
     final double percentage = total > 0 ? (completed / total) : 0.0;
     return Card(
       elevation: 2,
@@ -148,9 +150,9 @@ class ManagerDashboardScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Overall Completion Rate',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                Text(
+                  strings.overallCompletionRate,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   '${(percentage * 100).toStringAsFixed(0)}%',
@@ -170,7 +172,7 @@ class ManagerDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '$completed of $total tasks completed',
+              strings.tasksCompletedOf(completed, total),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
@@ -65,8 +66,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Failed to pick image: $e')),
+          SnackBar(content: Text(strings.failedToPickImage(e.toString()))),
         );
       }
     }
@@ -106,9 +108,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _isEditing = false;
       });
       
+      final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
       scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Profile saved successfully!'),
+        SnackBar(
+          content: Text(strings.profileSaveSuccess),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -173,11 +176,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final settingsState = ref.watch(settingsViewModelProvider);
     final isDark = settingsState.isDarkMode;
     final currentUser = authState.user;
+    final strings = AppStrings(settingsState.isVietnamese);
 
     return Scaffold(
       backgroundColor: isDark ? AppConstants.backgroundDark : AppConstants.backgroundLight,
       appBar: AppBar(
-        title: const Text('User Profile'),
+        title: Text(strings.userProfileTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -245,7 +249,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Column(
                         children: [
                           Text(
-                            currentUser?.name ?? 'Anonymous User',
+                            currentUser?.name ?? strings.anonymousUser,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 24,
@@ -255,7 +259,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           const SizedBox(height: AppConstants.paddingXs),
                           Text(
-                            currentUser?.email ?? 'No email associated',
+                            currentUser?.email ?? strings.noEmailAssociated,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 14,
@@ -295,7 +299,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   // Section Header
                   Text(
-                    _isEditing ? 'Edit Profile' : 'Profile Information',
+                    _isEditing ? strings.editProfile : strings.profileInformation,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -350,21 +354,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               children: [
                                 CustomTextField(
                                   controller: _nameController,
-                                  labelText: 'Full Name',
-                                  hintText: 'Enter your name',
+                                  labelText: strings.fullNameLabel,
+                                  hintText: strings.enterYourName,
                                   prefixIcon: Icons.badge_outlined,
                                   validator: (val) {
                                     if (val == null || val.trim().isEmpty) {
-                                      return 'Name is required';
+                                      return strings.nameRequired;
                                     }
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: AppConstants.paddingMd),
-                                
+
                                 const Divider(height: 32),
                                 Text(
-                                  'Change Password',
+                                  strings.changePassword,
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
@@ -372,11 +376,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: AppConstants.paddingSm),
-                                
+
                                 CustomTextField(
                                   controller: _oldPasswordController,
-                                  labelText: 'Current Password',
-                                  hintText: 'Required to confirm changes',
+                                  labelText: strings.currentPasswordLabel,
+                                  hintText: strings.currentPasswordHint,
                                   prefixIcon: Icons.lock_outline_rounded,
                                   obscureText: !_isOldPasswordVisible,
                                   suffixIcon: IconButton(
@@ -392,7 +396,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   validator: (val) {
                                     if (_newPasswordController.text.isNotEmpty &&
                                         (val == null || val.isEmpty)) {
-                                      return 'Current password is required to change password';
+                                      return strings.currentPasswordRequired;
                                     }
                                     return null;
                                   },
@@ -401,8 +405,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                                 CustomTextField(
                                   controller: _newPasswordController,
-                                  labelText: 'New Password',
-                                  hintText: 'Enter new password',
+                                  labelText: strings.newPasswordLabel,
+                                  hintText: strings.newPasswordHint,
                                   prefixIcon: Icons.lock_outline_rounded,
                                   obscureText: !_isNewPasswordVisible,
                                   suffixIcon: IconButton(
@@ -417,7 +421,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ),
                                   validator: (val) {
                                     if (val != null && val.isNotEmpty && val.length < 6) {
-                                      return 'Password must be at least 6 characters';
+                                      return strings.passwordMinLength;
                                     }
                                     return null;
                                   },
@@ -428,21 +432,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               children: [
                                 _ProfileDetailItem(
                                   icon: Icons.badge_outlined,
-                                  label: 'Name',
-                                  value: currentUser?.name ?? 'Not set',
+                                  label: strings.nameFieldLabel,
+                                  value: currentUser?.name ?? strings.notSet,
                                   isDark: isDark,
                                 ),
                                 const Divider(height: 24),
                                 _ProfileDetailItem(
                                   icon: Icons.email_outlined,
-                                  label: 'Email',
-                                  value: currentUser?.email ?? 'Not set',
+                                  label: strings.emailFieldLabel,
+                                  value: currentUser?.email ?? strings.notSet,
                                   isDark: isDark,
                                 ),
                                 const Divider(height: 24),
                                 _ProfileDetailItem(
                                   icon: Icons.security_rounded,
-                                  label: 'Role',
+                                  label: strings.roleFieldLabel,
                                   value: (currentUser?.role ?? 'member').toUpperCase(),
                                   isDark: isDark,
                                 ),
@@ -455,7 +459,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Actions Stack: Edit and Logout are full-width and stacked vertically
                   if (_isEditing) ...[
                     CustomButton(
-                      text: 'Save Changes',
+                      text: strings.saveChanges,
                       isLoading: authState.isLoading,
                       onPressed: _handleSaveChanges,
                     ),
@@ -475,15 +479,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           _avatarBase64 = null;
                         });
                       },
-                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(strings.cancel, style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ] else ...[
                     // Edit Profile Button (Now stacked above Logout, full-width)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.edit_rounded, color: Colors.white, size: 20),
-                      label: const Text(
-                        'Edit Profile',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      label: Text(
+                        strings.editProfile,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isDark ? AppConstants.primaryDark : AppConstants.primaryLight,
@@ -505,9 +509,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     // Logout Button (Below Edit Profile)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
-                      label: const Text(
-                        'Logout',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      label: Text(
+                        strings.logout,
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.redAccent,

@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../models/statistics.dart';
 
@@ -28,21 +33,22 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     });
   }
 
-  void _exportStatistics(BuildContext context) async {
-    // Show a loading dialog to simulate generation/export
+  void _exportStatistics(BuildContext context, AppStrings strings, Statistics? stats) async {
+    if (stats == null) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
+      builder: (ctx) => Center(
         child: Card(
           child: Padding(
-            padding: EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Exporting report...', style: TextStyle(fontWeight: FontWeight.bold)),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(strings.exportingReport, style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -50,67 +56,112 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       ),
     );
 
-    // Simulate database write / CSV file generation delay
-    await Future.delayed(const Duration(milliseconds: 1000));
+    var succeeded = false;
+    try {
+      final csvBytes = Uint8List.fromList(utf8.encode(_buildCsvReport(stats, strings)));
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            csvBytes,
+            name: 'task_statistics_${DateTime.now().millisecondsSinceEpoch}.csv',
+            mimeType: 'text/csv',
+          ),
+        ],
+        subject: strings.csvReportTitle,
+      );
+      succeeded = true;
+    } catch (_) {
+      succeeded = false;
+    } finally {
+      if (context.mounted) Navigator.pop(context); // Dismiss loading dialog
+    }
 
     if (context.mounted) {
-      Navigator.pop(context); // Dismiss loading dialog
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Statistics report exported successfully as CSV!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(succeeded ? strings.exportSuccess : strings.exportFailed),
+          backgroundColor: succeeded ? Colors.green : Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
       );
     }
   }
 
+  String _buildCsvReport(Statistics stats, AppStrings strings) {
+    final now = DateTime.now();
+    final dateLabel = '${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final buffer = StringBuffer()
+      ..writeln(strings.csvReportTitle)
+      ..writeln(strings.generatedOnLabel(dateLabel))
+      ..writeln();
+
+    void writeSection(String title, Map<String, int> dataMap) {
+      final total = dataMap.values.fold(0, (sum, val) => sum + val);
+      buffer.writeln(title);
+      buffer.writeln('${strings.statusLabel},${strings.columnCount},${strings.columnPercentage}');
+      dataMap.forEach((key, value) {
+        final percentage = total > 0 ? (value / total) * 100 : 0.0;
+        buffer.writeln('${strings.categoryLabel(key)},$value,${percentage.toStringAsFixed(1)}%');
+      });
+      buffer.writeln();
+    }
+
+    writeSection(strings.statusDistribution, stats.taskStatusDistribution);
+    writeSection(strings.priorityDistribution, stats.taskPriorityDistribution);
+
+    return buffer.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardViewModelProvider);
     final stats = dashboardState.statistics;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task Statistics'),
+        title: Text(strings.taskStatisticsTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_rounded),
-            tooltip: 'Export Statistics',
-            onPressed: () => _exportStatistics(context),
+            tooltip: strings.exportStatistics,
+            onPressed: stats == null ? null : () => _exportStatistics(context, strings, stats),
           ),
         ],
       ),
       body: dashboardState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : stats == null
-              ? _buildEmptyState()
+              ? _buildEmptyState(strings)
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildTimeFilter(),
+                      _buildTimeFilter(strings),
                       const SizedBox(height: 16),
-                      _buildSelectorToggle(),
+                      _buildSelectorToggle(strings),
                       const SizedBox(height: 24),
-                      _buildChartSection(stats),
+                      _buildChartSection(stats, strings),
                       const SizedBox(height: 24),
-                      _buildDetailsList(stats),
+                      _buildDetailsList(stats, strings),
                     ],
                   ),
                 ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppStrings strings) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.pie_chart_outline, size: 72, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text('No statistics data available', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          Text(strings.noStatisticsData, style: const TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () {
@@ -121,30 +172,30 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 role: user?.role,
               );
             },
-            child: const Text('Retry'),
+            child: Text(strings.retry),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTimeFilter() {
+  Widget _buildTimeFilter(AppStrings strings) {
     return SegmentedButton<String>(
-      segments: const [
+      segments: [
         ButtonSegment<String>(
           value: 'All Time',
-          label: Text('All'),
-          icon: Icon(Icons.date_range_rounded),
+          label: Text(strings.filterAll),
+          icon: const Icon(Icons.date_range_rounded),
         ),
         ButtonSegment<String>(
           value: 'This Week',
-          label: Text('Week'),
-          icon: Icon(Icons.calendar_view_week_rounded),
+          label: Text(strings.filterWeek),
+          icon: const Icon(Icons.calendar_view_week_rounded),
         ),
         ButtonSegment<String>(
           value: 'This Month',
-          label: Text('Month'),
-          icon: Icon(Icons.calendar_month_rounded),
+          label: Text(strings.filterMonth),
+          icon: const Icon(Icons.calendar_month_rounded),
         ),
       ],
       selected: {_dateRange},
@@ -162,18 +213,18 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     );
   }
 
-  Widget _buildSelectorToggle() {
+  Widget _buildSelectorToggle(AppStrings strings) {
     return SegmentedButton<bool>(
-      segments: const [
+      segments: [
         ButtonSegment<bool>(
           value: true,
-          label: Text('By Status'),
-          icon: Icon(Icons.donut_large),
+          label: Text(strings.byStatus),
+          icon: const Icon(Icons.donut_large),
         ),
         ButtonSegment<bool>(
           value: false,
-          label: Text('By Priority'),
-          icon: Icon(Icons.bar_chart),
+          label: Text(strings.byPriority),
+          icon: const Icon(Icons.bar_chart),
         ),
       ],
       selected: {_showStatusStats},
@@ -185,17 +236,23 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     );
   }
 
-  Widget _buildChartSection(Statistics stats) {
+  Widget _buildChartSection(Statistics stats, AppStrings strings) {
     final dataMap = _showStatusStats ? stats.taskStatusDistribution : stats.taskPriorityDistribution;
     final total = dataMap.values.fold(0, (sum, val) => sum + val);
 
     if (total == 0) {
-      return const SizedBox(
+      return SizedBox(
         height: 200,
-        child: Center(child: Text('No tasks found')),
+        child: Center(child: Text(strings.noTasksFound)),
       );
     }
 
+    return _showStatusStats
+        ? _buildPieChart(dataMap, total, strings)
+        : _buildBarChart(dataMap, strings);
+  }
+
+  Widget _buildPieChart(Map<String, int> dataMap, int total, AppStrings strings) {
     final List<PieChartSectionData> sections = [];
 
     dataMap.forEach((key, value) {
@@ -225,7 +282,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         child: Column(
           children: [
             Text(
-              _showStatusStats ? 'Status Distribution' : 'Priority Distribution',
+              strings.statusDistribution,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
@@ -240,14 +297,95 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildLegend(dataMap),
+            _buildLegend(dataMap, strings),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLegend(Map<String, int> dataMap) {
+  Widget _buildBarChart(Map<String, int> dataMap, AppStrings strings) {
+    final keys = dataMap.keys.toList();
+    final maxValue = dataMap.values.isEmpty
+        ? 0
+        : dataMap.values.reduce((a, b) => a > b ? a : b);
+
+    final barGroups = <BarChartGroupData>[
+      for (var i = 0; i < keys.length; i++)
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: (dataMap[keys[i]] ?? 0).toDouble(),
+              color: _getColorForCategory(keys[i]),
+              width: 32,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ],
+        ),
+    ];
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            Text(
+              strings.priorityDistribution,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 220,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: (maxValue == 0 ? 1 : maxValue + 1).toDouble(),
+                  barGroups: barGroups,
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  barTouchData: BarTouchData(enabled: true),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 1),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= keys.length) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              strings.categoryLabel(keys[index]),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildLegend(dataMap, strings),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegend(Map<String, int> dataMap, AppStrings strings) {
     return Wrap(
       spacing: 16,
       runSpacing: 8,
@@ -265,14 +403,14 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
               ),
             ),
             const SizedBox(width: 6),
-            Text('$key (${dataMap[key]})'),
+            Text('${strings.categoryLabel(key)} (${dataMap[key]})'),
           ],
         );
       }).toList(),
     );
   }
 
-  Widget _buildDetailsList(Statistics stats) {
+  Widget _buildDetailsList(Statistics stats, AppStrings strings) {
     final dataMap = _showStatusStats ? stats.taskStatusDistribution : stats.taskPriorityDistribution;
     final total = dataMap.values.fold(0, (sum, val) => sum + val);
 
@@ -291,12 +429,12 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
           return ListTile(
             leading: Icon(Icons.circle, color: _getColorForCategory(key), size: 16),
-            title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(strings.categoryLabel(key), style: const TextStyle(fontWeight: FontWeight.bold)),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('$val tasks', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(strings.taskCount(val), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 Text('${percentage.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),

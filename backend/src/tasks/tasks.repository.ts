@@ -40,6 +40,17 @@ export class TasksRepository {
     });
   }
 
+  async findByProjectIds(projectIds: string[]) {
+    return this.prisma.task.findMany({
+      where: { projectId: { in: projectIds } },
+      include: {
+        assignee: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, name: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   async update(id: string, data: Prisma.TaskUncheckedUpdateInput) {
     return this.prisma.task.update({ where: { id }, data });
   }

@@ -102,11 +102,10 @@ class TaskRepository {
             .map((json) => Task.fromJson(Map<String, dynamic>.from(json)))
             .toList();
         await _dbHelper.cacheTasks(tasks);
-        // Re-read SQLite so locally created tasks are not dropped.
-        return _visibleMyTasks(
-          await _dbHelper.getCachedTasks(),
-          currentUserId,
-        );
+        // Backend already returns the role-aware list (all project tasks for
+        // managers, assigned-only for members) — trust it directly instead of
+        // re-deriving visibility from local cache, which may be incomplete.
+        return tasks;
       } catch (error) {
         if (!allowCacheFallback || !_isConnectionFailure(error)) {
           throw _apiException(error, 'Unable to load your assigned tasks.');
@@ -118,11 +117,13 @@ class TaskRepository {
         'Unable to load live task data. Check your internet connection.',
       );
     }
+    // Offline best-effort: local cache may not reflect full project
+    // membership, so this is an approximation until connectivity returns.
     return _visibleMyTasks(await _dbHelper.getCachedTasks(), currentUserId);
   }
 
-  /// Members: tasks assigned to them.
-  /// Managers: assigned tasks + every task in projects they own.
+  /// Offline-only fallback. Members: tasks assigned to them.
+  /// Managers: assigned tasks + every task in locally cached owned projects.
   Future<List<Task>> _visibleMyTasks(
     List<Task> tasks,
     String currentUserId,

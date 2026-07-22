@@ -73,6 +73,28 @@ export declare class TasksRepository {
         assignedTo: string | null;
         dueDate: Date | null;
     })[]>;
+    findByProjectIds(projectIds: string[]): Promise<({
+        project: {
+            id: string;
+            name: string;
+        };
+        assignee: {
+            id: string;
+            email: string;
+            name: string;
+        } | null;
+    } & {
+        id: string;
+        updatedAt: Date;
+        createdAt: Date;
+        description: string | null;
+        projectId: string;
+        title: string;
+        priority: string;
+        status: string;
+        assignedTo: string | null;
+        dueDate: Date | null;
+    })[]>;
     update(id: string, data: Prisma.TaskUncheckedUpdateInput): Promise<{
         id: string;
         updatedAt: Date;

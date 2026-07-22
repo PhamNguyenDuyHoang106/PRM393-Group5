@@ -23,8 +23,8 @@ let StatisticsController = class StatisticsController {
     constructor(statisticsService) {
         this.statisticsService = statisticsService;
     }
-    async getDashboard(user) {
-        return this.statisticsService.getDashboard(user.id, user.role);
+    async getDashboard(user, range) {
+        return this.statisticsService.getDashboard(user.id, user.role, range);
     }
     async getProjectStats(projectId) {
         return this.statisticsService.getProjectStats(projectId);
@@ -33,11 +33,13 @@ let StatisticsController = class StatisticsController {
 exports.StatisticsController = StatisticsController;
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Get dashboard statistics for current user' }),
+    (0, swagger_1.ApiQuery)({ name: 'range', required: false, enum: ['week', 'month'], description: 'Restrict counts to tasks created since the start of the current week/month.' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Dashboard stats returned.' }),
     (0, common_1.Get)('dashboard'),
     __param(0, (0, user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('range')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], StatisticsController.prototype, "getDashboard", null);
 __decorate([

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../providers/providers.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
@@ -39,6 +40,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
   }
 
   Future<void> _addMemberEmail() async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final email = _memberEmailController.text.trim().toLowerCase();
     final currentEmail = ref
         .read(authViewModelProvider)
@@ -47,13 +49,13 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
         .toLowerCase();
     String? error;
     if (email.isEmpty) {
-      error = 'Enter an email before adding it';
+      error = strings.enterEmailBeforeAdding;
     } else if (!_emailPattern.hasMatch(email)) {
-      error = 'Enter a valid email address';
+      error = strings.enterValidEmail;
     } else if (email == currentEmail) {
-      error = 'The project owner is added automatically';
+      error = strings.ownerAddedAutomatically;
     } else if (_memberEmails.contains(email)) {
-      error = 'This email is already in the list';
+      error = strings.emailAlreadyInList;
     }
 
     setState(() => _memberEmailError = error);
@@ -107,12 +109,15 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
         );
 
     if (!mounted || project == null) return;
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final warning = ref.read(projectViewModelProvider).errorMessage;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           warning ??
-              'Project “${project.name}” created${_memberEmails.isEmpty ? '.' : ' with invited members.'}',
+              (_memberEmails.isEmpty
+                  ? strings.projectCreatedMsg(project.name)
+                  : strings.projectCreatedWithMembersMsg(project.name)),
         ),
       ),
     );
@@ -123,26 +128,27 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authViewModelProvider);
     final projectState = ref.watch(projectViewModelProvider);
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     if (authState.isLoading && authState.user == null) {
-      return const Scaffold(
-        body: LoadingWidget(message: 'Checking permissions...'),
+      return Scaffold(
+        body: LoadingWidget(message: strings.checkingPermissions),
       );
     }
     if (authState.user?.isManager != true) {
-      return const _ProjectAccessDenied();
+      return _ProjectAccessDenied(strings: strings);
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Project'),
+        title: Text(strings.createProjectTitle),
         actions: [
           TextButton(
             onPressed:
                 projectState.isSubmitting || projectState.isValidatingMember
                 ? null
                 : _resetForm,
-            child: const Text('Reset'),
+            child: Text(strings.reset),
           ),
         ],
       ),
@@ -154,13 +160,14 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
             children: [
               _SectionHeader(
                 icon: Icons.folder_outlined,
-                title: 'Project information',
-                subtitle: 'Use a concise name and explain the project goal.',
+                title: strings.projectInformation,
+                subtitle: strings.projectInfoSubtitle,
               ),
               const SizedBox(height: AppConstants.paddingLg),
               if (projectState.errorMessage != null) ...[
                 _InlineProjectError(
                   message: projectState.errorMessage!,
+                  strings: strings,
                   onDismiss: () =>
                       ref.read(projectViewModelProvider.notifier).clearError(),
                 ),
@@ -168,17 +175,17 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
               ],
               CustomTextField(
                 controller: _nameController,
-                labelText: 'Project name',
-                hintText: 'e.g. Mobile App Redesign',
+                labelText: strings.projectNameLabel,
+                hintText: strings.projectNameHint,
                 prefixIcon: Icons.drive_file_rename_outline_rounded,
                 validator: (value) {
                   final name = value?.trim() ?? '';
-                  if (name.isEmpty) return 'Project name is required';
+                  if (name.isEmpty) return strings.projectNameRequired;
                   if (name.length < 3) {
-                    return 'Project name must be at least 3 characters';
+                    return strings.projectNameMinLength;
                   }
                   if (name.length > 100) {
-                    return 'Project name must not exceed 100 characters';
+                    return strings.projectNameMaxLength;
                   }
                   return null;
                 },
@@ -191,11 +198,11 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                 maxLength: 500,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Describe the project goals and scope',
+                  labelText: strings.descriptionLabel,
+                  hintText: strings.describeProjectHint,
                   alignLabelWithHint: true,
                   suffixIcon: IconButton(
-                    tooltip: 'Clear description',
+                    tooltip: strings.clearDescriptionTooltip,
                     onPressed: _descriptionController.clear,
                     icon: const Icon(Icons.backspace_outlined),
                   ),
@@ -206,9 +213,8 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
               const SizedBox(height: AppConstants.paddingLg),
               _SectionHeader(
                 icon: Icons.group_add_outlined,
-                title: 'Initial members',
-                subtitle:
-                    'Optional. Each account is verified before it is added.',
+                title: strings.initialMembers,
+                subtitle: strings.initialMembersSubtitle,
               ),
               const SizedBox(height: AppConstants.paddingMd),
               TextField(
@@ -227,7 +233,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                   }
                 },
                 decoration: InputDecoration(
-                  labelText: 'Member email',
+                  labelText: strings.memberEmailLabel,
                   hintText: 'member@example.com',
                   prefixIcon: const Icon(Icons.alternate_email_rounded),
                   errorText: _memberEmailError,
@@ -240,7 +246,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                           ),
                         )
                       : IconButton(
-                          tooltip: 'Add email',
+                          tooltip: strings.addEmailTooltip,
                           onPressed: _addMemberEmail,
                           icon: const Icon(
                             Icons.add_circle_outline_rounded,
@@ -272,8 +278,8 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
               const SizedBox(height: AppConstants.paddingXl),
               CustomButton(
                 text: _memberEmails.isEmpty
-                    ? 'Create Project'
-                    : 'Create & Add ${_memberEmails.length} Members',
+                    ? strings.createProjectButton
+                    : strings.createAndAddMembers(_memberEmails.length),
                 icon: Icons.add_task_rounded,
                 isLoading: projectState.isSubmitting,
                 onPressed: projectState.isValidatingMember
@@ -287,7 +293,7 @@ class _CreateProjectScreenState extends ConsumerState<CreateProjectScreen> {
                         projectState.isValidatingMember
                     ? null
                     : () => context.pop(),
-                child: const Text('Cancel'),
+                child: Text(strings.cancel),
               ),
             ],
           ),
@@ -341,12 +347,14 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ProjectAccessDenied extends StatelessWidget {
-  const _ProjectAccessDenied();
+  const _ProjectAccessDenied({required this.strings});
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Project')),
+      appBar: AppBar(title: Text(strings.createProjectTitle)),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppConstants.paddingLg),
@@ -360,12 +368,12 @@ class _ProjectAccessDenied extends StatelessWidget {
               ),
               const SizedBox(height: AppConstants.paddingMd),
               Text(
-                'Manager access required',
+                strings.managerAccessRequired,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: AppConstants.paddingSm),
-              const Text(
-                'Only managers can create projects.',
+              Text(
+                strings.onlyManagersCanCreateProjects,
                 textAlign: TextAlign.center,
               ),
             ],
@@ -377,10 +385,15 @@ class _ProjectAccessDenied extends StatelessWidget {
 }
 
 class _InlineProjectError extends StatelessWidget {
-  const _InlineProjectError({required this.message, required this.onDismiss});
+  const _InlineProjectError({
+    required this.message,
+    required this.onDismiss,
+    required this.strings,
+  });
 
   final String message;
   final VoidCallback onDismiss;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -396,7 +409,7 @@ class _InlineProjectError extends StatelessWidget {
           const SizedBox(width: AppConstants.paddingSm),
           Expanded(child: Text(message)),
           IconButton(
-            tooltip: 'Dismiss',
+            tooltip: strings.dismiss,
             onPressed: onDismiss,
             icon: const Icon(Icons.close_rounded),
           ),

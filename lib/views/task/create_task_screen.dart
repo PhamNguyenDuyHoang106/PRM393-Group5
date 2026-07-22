@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/project.dart';
 import '../../providers/providers.dart';
 import '../../widgets/custom_button.dart';
@@ -109,9 +110,10 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
           dueDate: _dueDate,
         );
     if (task != null && mounted) {
+      final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Task "${task.title}" created.')));
+      ).showSnackBar(SnackBar(content: Text(strings.taskCreatedMsg(task.title))));
       context.pop(true);
     }
   }
@@ -121,16 +123,17 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     final authState = ref.watch(authViewModelProvider);
     final projectState = ref.watch(projectViewModelProvider);
     final taskState = ref.watch(taskViewModelProvider);
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
 
     if (authState.isLoading && authState.user == null) {
-      return const Scaffold(
-        body: LoadingWidget(message: 'Checking permissions...'),
+      return Scaffold(
+        body: LoadingWidget(message: strings.checkingPermissions),
       );
     }
     if (authState.user?.isManager != true) {
-      return const _TaskAccessDenied(
-        title: 'Create Task',
-        message: 'Only managers can create tasks.',
+      return _TaskAccessDenied(
+        title: strings.createTaskTitle,
+        message: strings.onlyManagersCanCreateTasks,
       );
     }
 
@@ -152,13 +155,13 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
         0,
         DropdownMenuItem(
           value: currentUser.id,
-          child: Text('${currentUser.name} (me)'),
+          child: Text(strings.meLabel(currentUser.name)),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Task')),
+      appBar: AppBar(title: Text(strings.createTaskTitle)),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppConstants.paddingLg),
@@ -168,7 +171,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Define the work',
+                  strings.defineTheWork,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -177,9 +180,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                 DropdownButtonFormField<String>(
                   key: ValueKey('project-$_projectId'),
                   initialValue: _projectId,
-                  decoration: const InputDecoration(
-                    labelText: 'Project',
-                    prefixIcon: Icon(Icons.folder_outlined),
+                  decoration: InputDecoration(
+                    labelText: strings.projectFieldLabel,
+                    prefixIcon: const Icon(Icons.folder_outlined),
                   ),
                   items: projectState.projects
                       .map(
@@ -193,22 +196,22 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                       ? null
                       : _changeProject,
                   validator: (value) =>
-                      value == null ? 'Select a project' : null,
+                      value == null ? strings.selectAProject : null,
                 ),
                 const SizedBox(height: AppConstants.paddingMd),
                 CustomTextField(
                   controller: _titleController,
-                  labelText: 'Task Name',
-                  hintText: 'e.g. Integrate Dio Client',
+                  labelText: strings.taskNameLabel,
+                  hintText: strings.taskNameHint,
                   prefixIcon: Icons.task_outlined,
                   validator: (value) {
                     final title = value?.trim() ?? '';
-                    if (title.isEmpty) return 'Task name is required';
+                    if (title.isEmpty) return strings.taskNameRequired;
                     if (title.length < 3) {
-                      return 'Task name must be at least 3 characters';
+                      return strings.taskNameMinLength;
                     }
                     if (title.length > 120) {
-                      return 'Task name must not exceed 120 characters';
+                      return strings.taskNameMaxLength;
                     }
                     return null;
                   },
@@ -219,10 +222,10 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                   minLines: 3,
                   maxLines: 6,
                   maxLength: 500,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
+                  decoration: InputDecoration(
+                    labelText: strings.descriptionLabel,
                     alignLabelWithHint: true,
-                    prefixIcon: Icon(Icons.notes_rounded),
+                    prefixIcon: const Icon(Icons.notes_rounded),
                   ),
                 ),
                 const SizedBox(height: AppConstants.paddingMd),
@@ -231,9 +234,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                   initialValue: assigneeItems.any((item) => item.value == _assignedTo)
                       ? _assignedTo
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Assign Member',
-                    prefixIcon: Icon(Icons.person_add_alt_1_outlined),
+                  decoration: InputDecoration(
+                    labelText: strings.assignMember,
+                    prefixIcon: const Icon(Icons.person_add_alt_1_outlined),
                   ),
                   items: assigneeItems,
                   onChanged: projectState.isLoadingDetails
@@ -243,14 +246,16 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                 const SizedBox(height: AppConstants.paddingMd),
                 DropdownButtonFormField<String>(
                   initialValue: _priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                    prefixIcon: Icon(Icons.flag_outlined),
+                  decoration: InputDecoration(
+                    labelText: strings.priorityLabel,
+                    prefixIcon: const Icon(Icons.flag_outlined),
                   ),
-                  items: const ['LOW', 'MEDIUM', 'HIGH']
+                  items: ['LOW', 'MEDIUM', 'HIGH']
                       .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(strings.categoryLabel(value)),
+                        ),
                       )
                       .toList(),
                   onChanged: (value) =>
@@ -260,12 +265,12 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                 InkWell(
                   onTap: _pickDueDate,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Due Date',
-                      prefixIcon: Icon(Icons.event_outlined),
+                    decoration: InputDecoration(
+                      labelText: strings.dueDateLabel,
+                      prefixIcon: const Icon(Icons.event_outlined),
                     ),
                     child: Text(
-                      _dueDate == null ? 'No due date' : _formatDate(_dueDate!),
+                      _dueDate == null ? strings.noDueDate : _formatDate(_dueDate!),
                     ),
                   ),
                 ),
@@ -280,7 +285,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                 ],
                 const SizedBox(height: AppConstants.paddingLg),
                 CustomButton(
-                  text: 'Create Task',
+                  text: strings.createTaskTitle,
                   icon: Icons.add_task_rounded,
                   isLoading: taskState.isSubmitting,
                   onPressed: _submit,
@@ -300,14 +305,15 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   }
 }
 
-class _TaskAccessDenied extends StatelessWidget {
+class _TaskAccessDenied extends ConsumerWidget {
   const _TaskAccessDenied({required this.title, required this.message});
 
   final String title;
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: Center(
@@ -323,7 +329,7 @@ class _TaskAccessDenied extends StatelessWidget {
               ),
               const SizedBox(height: AppConstants.paddingMd),
               Text(
-                'Access denied',
+                strings.accessDenied,
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),

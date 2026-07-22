@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/localization/app_strings.dart';
 import '../../models/task.dart';
 import '../../providers/providers.dart';
 import '../../viewmodels/task_viewmodel.dart';
@@ -42,16 +43,17 @@ class _UpdateTaskStatusScreenState
   }
 
   Future<void> _save(Task task) async {
+    final strings = AppStrings(ref.read(settingsViewModelProvider).isVietnamese);
     final status = _selectedStatus;
     if (status == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a status before saving.')),
+        SnackBar(content: Text(strings.selectStatusBeforeSaving)),
       );
       return;
     }
     if (status == task.status) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Status is already up to date.')),
+        SnackBar(content: Text(strings.statusAlreadyUpToDate)),
       );
       return;
     }
@@ -64,7 +66,7 @@ class _UpdateTaskStatusScreenState
     if (updated != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Status updated to ${status.replaceAll('_', ' ')}.'),
+          content: Text(strings.statusUpdatedTo(strings.categoryLabel(status))),
         ),
       );
       context.pop(true);
@@ -73,7 +75,7 @@ class _UpdateTaskStatusScreenState
 
     final error = ref.read(taskViewModelProvider).errorMessage;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error ?? 'Could not update status.')),
+      SnackBar(content: Text(error ?? strings.couldNotUpdateStatus)),
     );
   }
 
@@ -81,6 +83,7 @@ class _UpdateTaskStatusScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(taskViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
+    final strings = AppStrings(ref.watch(settingsViewModelProvider).isVietnamese);
     final task = state.selectedTask?.id == widget.taskId
         ? state.selectedTask
         : null;
@@ -89,8 +92,8 @@ class _UpdateTaskStatusScreenState
         (user.isManager || (task != null && task.assignedTo == user.id));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Update Status')),
-      body: _buildBody(state, task, canUpdate: canUpdate),
+      appBar: AppBar(title: Text(strings.updateStatusButton)),
+      body: _buildBody(state, task, canUpdate: canUpdate, strings: strings),
     );
   }
 
@@ -98,21 +101,22 @@ class _UpdateTaskStatusScreenState
     TaskState state,
     Task? task, {
     required bool canUpdate,
+    required AppStrings strings,
   }) {
     if (state.isLoadingDetails && task == null) {
-      return const LoadingWidget(message: 'Loading task...');
+      return LoadingWidget(message: strings.loadingTask);
     }
     if (task == null) {
       return AppErrorDisplay(
-        title: 'Task unavailable',
-        error: state.errorMessage ?? 'Task not found.',
+        title: strings.taskUnavailable,
+        error: state.errorMessage ?? strings.taskNotFound,
         onRetry: _load,
       );
     }
     if (!canUpdate) {
-      return const AppErrorDisplay(
-        title: 'Access denied',
-        error: 'Only the assignee or a manager can update this task status.',
+      return AppErrorDisplay(
+        title: strings.accessDenied,
+        error: strings.onlyAssigneeOrManagerCanUpdate,
       );
     }
 
@@ -136,7 +140,7 @@ class _UpdateTaskStatusScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Current status: ${task.status.replaceAll('_', ' ')}',
+                    strings.currentStatusLabel(strings.categoryLabel(task.status)),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -147,7 +151,7 @@ class _UpdateTaskStatusScreenState
           ),
           const SizedBox(height: AppConstants.paddingLg),
           Text(
-            'Select new status',
+            strings.selectNewStatus,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -169,8 +173,8 @@ class _UpdateTaskStatusScreenState
                       ? Theme.of(context).colorScheme.primary
                       : null,
                 ),
-                title: Text(status.replaceAll('_', ' ')),
-                subtitle: Text(_statusHint(status)),
+                title: Text(strings.categoryLabel(status)),
+                subtitle: Text(_statusHint(status, strings)),
                 onTap: state.isSubmitting
                     ? null
                     : () => setState(() => _selectedStatus = status),
@@ -186,7 +190,7 @@ class _UpdateTaskStatusScreenState
           ],
           const SizedBox(height: AppConstants.paddingLg),
           CustomButton(
-            text: 'Save Status',
+            text: strings.saveStatusButton,
             icon: Icons.check_circle_outline,
             isLoading: state.isSubmitting,
             onPressed: () => _save(task),
@@ -194,21 +198,21 @@ class _UpdateTaskStatusScreenState
           const SizedBox(height: AppConstants.paddingSm),
           OutlinedButton(
             onPressed: state.isSubmitting ? null : () => context.pop(false),
-            child: const Text('Cancel'),
+            child: Text(strings.cancel),
           ),
         ],
       ),
     );
   }
 
-  String _statusHint(String status) {
+  String _statusHint(String status, AppStrings strings) {
     switch (status) {
       case 'TODO':
-        return 'Not started yet';
+        return strings.statusHintTodo;
       case 'IN_PROGRESS':
-        return 'Currently being worked on';
+        return strings.statusHintInProgress;
       case 'DONE':
-        return 'Completed';
+        return strings.statusHintDone;
       default:
         return '';
     }
