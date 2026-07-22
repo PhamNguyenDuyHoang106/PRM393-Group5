@@ -77,6 +77,65 @@ let TasksRepository = class TasksRepository {
             _count: { priority: true },
         });
     }
+    async createChecklist(data) {
+        return this.prisma.taskChecklist.create({ data });
+    }
+    async findChecklists(taskId) {
+        return this.prisma.taskChecklist.findMany({
+            where: { taskId },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+    async findChecklistOne(id) {
+        return this.prisma.taskChecklist.findUnique({
+            where: { id },
+            include: { task: { include: { project: true } } },
+        });
+    }
+    async updateChecklist(id, data) {
+        return this.prisma.taskChecklist.update({ where: { id }, data });
+    }
+    async deleteChecklist(id) {
+        return this.prisma.taskChecklist.delete({ where: { id } });
+    }
+    async createComment(data) {
+        return this.prisma.taskComment.create({
+            data,
+            include: {
+                user: { select: { id: true, name: true, avatarUrl: true } },
+            },
+        });
+    }
+    async findComments(taskId) {
+        return this.prisma.taskComment.findMany({
+            where: { taskId },
+            include: {
+                user: { select: { id: true, name: true, avatarUrl: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+    async findCommentOne(id) {
+        return this.prisma.taskComment.findUnique({
+            where: { id },
+            include: { task: { include: { project: true } } },
+        });
+    }
+    async deleteComment(id) {
+        return this.prisma.taskComment.delete({ where: { id } });
+    }
+    async createAuditLog(data) {
+        return this.prisma.auditLog.create({ data });
+    }
+    async findAuditLogs(taskId) {
+        return this.prisma.auditLog.findMany({
+            where: { entity: 'Task', entityId: taskId },
+            include: {
+                user: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
 };
 exports.TasksRepository = TasksRepository;
 exports.TasksRepository = TasksRepository = __decorate([

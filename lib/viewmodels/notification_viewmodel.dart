@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification.dart';
 import '../repositories/notification_repository.dart';
+import '../core/database/db_helper.dart';
 
 /// Chế độ lọc thông báo trên màn Notification Center
 enum NotificationFilter {
@@ -133,5 +134,40 @@ class NotificationViewModel extends StateNotifier<NotificationState> {
   /// Xoá thông báo lỗi.
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  /// Client-side Reminder check (reminds for non-DONE tasks with dueDate < 24h or overdue)
+  Future<void> checkLocalReminders(String userId) async {
+    try {
+      final db = DbHelper.instance;
+      final cachedTasks = await db.getCachedTasks();
+      final now = DateTime.now();
+      final in24h = now.add(const Duration(hours: 24));
+
+      for (final task in cachedTasks) {
+        if (task.status == 'DONE' || task.dueDate == null) continue;
+
+        final isOverdue = task.dueDate!.isBefore(now);
+        final isDueSoon = task.dueDate!.isBefore(in24h) && !isOverdue;
+
+        if (isOverdue || isDueSoon) {
+          final title = isOverdue ? 'Task Overdue Reminder' : 'Task Due Soon Reminder';
+          final message = isOverdue
+              ? 'Task "${task.title}" is overdue!'
+              : 'Task "${task.title}" is due in less than 24 hours!';
+
+          final notif = AppNotification(
+            id: 'rem_${task.id}_${isOverdue ? "overdue" : "duesoon"}',
+            userId: userId,
+            title: title,
+            message: message,
+            readStatus: 0,
+            createdAt: now,
+          );
+          await db.cacheNotification(notif);
+        }
+      }
+      await loadNotifications(userId: userId);
+    } catch (_) {}
   }
 }

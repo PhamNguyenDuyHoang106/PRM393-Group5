@@ -102,4 +102,75 @@ export declare class TasksService {
         dueDate: Date | null;
     }>;
     delete(id: string, requesterId: string): Promise<void>;
+    createChecklist(taskId: string, title: string, requesterId: string, customId?: string): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }>;
+    findChecklists(taskId: string, requesterId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }[]>;
+    updateChecklist(id: string, dto: {
+        title?: string;
+        isDone?: boolean;
+    }, requesterId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }>;
+    deleteChecklist(id: string, requesterId: string): Promise<void>;
+    createComment(taskId: string, content: string, requesterId: string, customId?: string): Promise<{
+        user: {
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string;
+        content: string;
+        taskId: string;
+    }>;
+    findComments(taskId: string, requesterId: string): Promise<({
+        user: {
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string;
+        content: string;
+        taskId: string;
+    })[]>;
+    deleteComment(id: string, requesterId: string, requesterRole: string): Promise<void>;
+    findActivities(taskId: string, requesterId: string): Promise<({
+        user: {
+            id: string;
+            name: string;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string | null;
+        action: string;
+        entity: string;
+        entityId: string;
+        ip: string | null;
+        userAgent: string | null;
+        oldData: string | null;
+        newData: string | null;
+    })[]>;
+    private _requireProjectAccess;
+    private _createAuditLog;
 }

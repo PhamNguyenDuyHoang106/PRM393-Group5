@@ -6,6 +6,9 @@ import '../../models/task.dart';
 import '../../models/notification.dart';
 import '../../models/pending_action.dart';
 import '../../models/statistics.dart';
+import '../../models/checklist.dart';
+import '../../models/comment.dart';
+import '../../models/activity_log.dart';
 
 class DbHelper {
   DbHelper._privateConstructor();
@@ -43,6 +46,39 @@ class DbHelper {
         verified_at TEXT,
         reset_completed INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (email, requested_at)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS task_checklists (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        is_done INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT,
+        user_avatar_url TEXT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        user_name TEXT,
+        action TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        old_data TEXT,
+        new_data TEXT,
+        created_at TEXT NOT NULL
       )
     ''');
   }
@@ -114,6 +150,45 @@ class DbHelper {
         id TEXT PRIMARY KEY,
         action_type TEXT NOT NULL,
         payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    // 7. task_checklists table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS task_checklists (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        is_done INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    // 8. task_comments table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_name TEXT,
+        user_avatar_url TEXT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    // 9. audit_logs table
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        user_name TEXT,
+        action TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        old_data TEXT,
+        new_data TEXT,
         created_at TEXT NOT NULL
       )
     ''');
@@ -504,6 +579,15 @@ class DbHelper {
   Future<void> deleteTask(String taskId) => deleteCachedTask(taskId);
 
   // Notifications Cache
+  Future<void> cacheNotification(AppNotification notif) async {
+    final db = await database;
+    await db.insert(
+      'notifications',
+      notif.toJson(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   Future<void> cacheNotifications(List<AppNotification> notifications) async {
     final db = await database;
     final batch = db.batch();
@@ -596,5 +680,81 @@ class DbHelper {
         whereArgs: [latestRequest['email'], latestRequest['requested_at']],
       );
     }
+  }
+
+  // --- CHECKLIST CACHE HELPERS ---
+  Future<void> cacheChecklists(String taskId, List<TaskChecklist> items) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('task_checklists', where: 'task_id = ?', whereArgs: [taskId]);
+      for (final item in items) {
+        await txn.insert('task_checklists', item.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<TaskChecklist>> getCachedChecklists(String taskId) async {
+    final db = await database;
+    final maps = await db.query('task_checklists', where: 'task_id = ?', whereArgs: [taskId], orderBy: 'created_at ASC');
+    return maps.map(TaskChecklist.fromJson).toList();
+  }
+
+  Future<void> saveCachedChecklist(TaskChecklist item) async {
+    final db = await database;
+    await db.insert('task_checklists', item.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> deleteCachedChecklist(String id) async {
+    final db = await database;
+    await db.delete('task_checklists', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- COMMENT CACHE HELPERS ---
+  Future<void> cacheComments(String taskId, List<TaskComment> comments) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('task_comments', where: 'task_id = ?', whereArgs: [taskId]);
+      for (final c in comments) {
+        await txn.insert('task_comments', c.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<TaskComment>> getCachedComments(String taskId) async {
+    final db = await database;
+    final maps = await db.query('task_comments', where: 'task_id = ?', whereArgs: [taskId], orderBy: 'created_at ASC');
+    return maps.map(TaskComment.fromJson).toList();
+  }
+
+  Future<void> saveCachedComment(TaskComment comment) async {
+    final db = await database;
+    await db.insert('task_comments', comment.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> deleteCachedComment(String id) async {
+    final db = await database;
+    await db.delete('task_comments', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- AUDITLOG CACHE HELPERS ---
+  Future<void> cacheAuditLogs(String taskId, List<ActivityLog> logs) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('audit_logs', where: 'entity_id = ?', whereArgs: [taskId]);
+      for (final log in logs) {
+        await txn.insert('audit_logs', log.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
+  }
+
+  Future<List<ActivityLog>> getCachedAuditLogs(String taskId) async {
+    final db = await database;
+    final maps = await db.query('audit_logs', where: 'entity_id = ?', whereArgs: [taskId], orderBy: 'created_at DESC');
+    return maps.map(ActivityLog.fromJson).toList();
+  }
+
+  Future<void> saveCachedAuditLog(ActivityLog log) async {
+    final db = await database;
+    await db.insert('audit_logs', log.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
   }
 }

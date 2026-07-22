@@ -19,6 +19,8 @@ import {
 } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto, UpdateTaskStatusDto } from './dto/task.dto';
+import { CreateChecklistDto, UpdateChecklistDto } from './dto/checklist.dto';
+import { CreateCommentDto } from './dto/comment.dto';
 import { AuthGuard } from '../guards/auth.guard';
 import { CurrentUser } from '../decorators/user.decorator';
 
@@ -95,5 +97,70 @@ export class TasksController {
   @Delete('tasks/:id')
   async delete(@Param('id') id: string, @CurrentUser() user: any) {
     await this.tasksService.delete(id, user.id);
+  }
+
+  // ── Task Checklist routes ───────────────────────────────────────────────
+  @ApiOperation({ summary: 'List checklist items for a task' })
+  @Get('tasks/:taskId/checklists')
+  async findChecklists(@Param('taskId') taskId: string, @CurrentUser() user: any) {
+    return this.tasksService.findChecklists(taskId, user.id);
+  }
+
+  @ApiOperation({ summary: 'Add a checklist item to a task' })
+  @Post('tasks/:taskId/checklists')
+  async createChecklist(
+    @Param('taskId') taskId: string,
+    @Body() dto: CreateChecklistDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.createChecklist(taskId, dto.title, user.id, dto.id);
+  }
+
+  @ApiOperation({ summary: 'Update/Toggle a checklist item' })
+  @Patch('tasks/checklists/:id')
+  async updateChecklist(
+    @Param('id') id: string,
+    @Body() dto: UpdateChecklistDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.updateChecklist(id, dto, user.id);
+  }
+
+  @ApiOperation({ summary: 'Delete a checklist item' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('tasks/checklists/:id')
+  async deleteChecklist(@Param('id') id: string, @CurrentUser() user: any) {
+    await this.tasksService.deleteChecklist(id, user.id);
+  }
+
+  // ── Task Comment routes ──────────────────────────────────────────────────
+  @ApiOperation({ summary: 'List comments for a task' })
+  @Get('tasks/:taskId/comments')
+  async findComments(@Param('taskId') taskId: string, @CurrentUser() user: any) {
+    return this.tasksService.findComments(taskId, user.id);
+  }
+
+  @ApiOperation({ summary: 'Add a comment to a task' })
+  @Post('tasks/:taskId/comments')
+  async createComment(
+    @Param('taskId') taskId: string,
+    @Body() dto: CreateCommentDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.tasksService.createComment(taskId, dto.content, user.id, dto.id);
+  }
+
+  @ApiOperation({ summary: 'Delete a comment (Author or Manager only)' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('tasks/comments/:id')
+  async deleteComment(@Param('id') id: string, @CurrentUser() user: any) {
+    await this.tasksService.deleteComment(id, user.id, user.role);
+  }
+
+  // ── Task Activity History route ──────────────────────────────────────────
+  @ApiOperation({ summary: 'Get activity history (AuditLog) for a task' })
+  @Get('tasks/:taskId/activities')
+  async findActivities(@Param('taskId') taskId: string, @CurrentUser() user: any) {
+    return this.tasksService.findActivities(taskId, user.id);
   }
 }

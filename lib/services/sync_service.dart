@@ -192,6 +192,49 @@ class SyncService {
           );
           return true;
 
+        case 'CREATE_CHECKLIST':
+          if (kDebugMode) print('[SyncService] Syncing: Create checklist item');
+          await dio.post(
+            '/tasks/${data["taskId"]}/checklists',
+            data: {
+              'id': data['id'],
+              'title': data['title'],
+            },
+          );
+          return true;
+
+        case 'UPDATE_CHECKLIST':
+          if (kDebugMode) print('[SyncService] Syncing: Update checklist item ${data["id"]}');
+          await dio.patch(
+            '/tasks/checklists/${data["id"]}',
+            data: {
+              if (data.containsKey('title')) 'title': data['title'],
+              if (data.containsKey('isDone')) 'isDone': data['isDone'],
+            },
+          );
+          return true;
+
+        case 'DELETE_CHECKLIST':
+          if (kDebugMode) print('[SyncService] Syncing: Delete checklist item ${data["id"]}');
+          await dio.delete('/tasks/checklists/${data["id"]}');
+          return true;
+
+        case 'CREATE_COMMENT':
+          if (kDebugMode) print('[SyncService] Syncing: Create comment');
+          await dio.post(
+            '/tasks/${data["taskId"]}/comments',
+            data: {
+              'id': data['id'],
+              'content': data['content'],
+            },
+          );
+          return true;
+
+        case 'DELETE_COMMENT':
+          if (kDebugMode) print('[SyncService] Syncing: Delete comment ${data["id"]}');
+          await dio.delete('/tasks/comments/${data["id"]}');
+          return true;
+
         default:
           if (kDebugMode) {
             print('[SyncService] Unknown action type: ${action.actionType}');
@@ -201,6 +244,10 @@ class SyncService {
     } catch (e) {
       if (kDebugMode) {
         print('[SyncService] API Error processing action ${action.id}: $e');
+      }
+      // If server returns 404 Not Found (item already deleted or gone), consider action resolved so queue does not block
+      if (e.toString().contains('404')) {
+        return true;
       }
       return false;
     }

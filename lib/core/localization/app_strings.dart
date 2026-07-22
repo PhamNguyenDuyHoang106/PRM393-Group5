@@ -28,6 +28,14 @@ class AppStrings {
   String tasksCompletedOf(int completed, int total) =>
       _t('$completed of $total tasks completed', '$completed/$total công việc đã hoàn thành');
   String get unableToLoadData => _t('Unable to load your data', 'Không thể tải dữ liệu');
+  String get inProgressTasksLabel => _t('In Progress', 'Đang làm');
+  String get overdueTasksLabel => _t('Overdue', 'Trễ hạn');
+  String get tasksByMember => _t('Tasks by Member', 'Công việc theo thành viên');
+  String get overdueTasksSection => _t('Overdue Tasks', 'Công việc trễ hạn');
+  String get tasksDueSoon => _t('Tasks Due Soon (Next 3 Days)', 'Sắp đến hạn (3 ngày tới)');
+  String get myOverdueTasks => _t('My Overdue Tasks', 'Công việc trễ hạn của tôi');
+  String get myUpcomingTasks => _t('My Upcoming Tasks', 'Công việc sắp đến hạn của tôi');
+  String dueLabel(String date) => _t('Due: $date', 'Hạn: $date');
 
   // ─── Statistics ────────────────────────────────────────────────────────
   String get taskStatisticsTitle => _t('Task Statistics', 'Thống kê công việc');

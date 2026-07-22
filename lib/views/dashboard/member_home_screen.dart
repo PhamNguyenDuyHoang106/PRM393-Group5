@@ -126,27 +126,111 @@ class MemberHomeScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    strings.progressStatistics,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () => context.push('/stats'),
-                    child: Text(strings.viewCharts),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          strings.progressStatistics,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        TextButton(
+                          onPressed: () => context.push('/stats'),
+                          child: Text(strings.viewCharts),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildOverallProgressBar(assignedTasksCount, completedTasksCount, strings),
+                    const SizedBox(height: 20),
+
+                    if (stats != null && stats.overdueTasksList.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Text(
+                            strings.myOverdueTasks,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.overdueTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.overdueTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(strings.dueLabel(_formatDueDate(item.dueDate, strings))),
+                              trailing: Chip(
+                                label: Text(strings.categoryLabel(item.priority)),
+                                backgroundColor: Colors.red.shade50,
+                                labelStyle: const TextStyle(color: Colors.red, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    if (stats != null && stats.upcomingTasksList.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.event_available_rounded, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Text(
+                            strings.myUpcomingTasks,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.upcomingTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.upcomingTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(strings.dueLabel(_formatDueDate(item.dueDate, strings))),
+                              trailing: Chip(
+                                label: Text(strings.categoryLabel(item.status)),
+                                backgroundColor: Colors.orange.shade50,
+                                labelStyle: const TextStyle(color: Colors.orange, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              _buildOverallProgressBar(assignedTasksCount, completedTasksCount, strings),
-            ],
-          ),
-        ),
       ),
     );
+  }
+
+  String _formatDueDate(DateTime? date, AppStrings strings) {
+    if (date == null) return strings.noDueDate;
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildOverallProgressBar(int total, int completed, AppStrings strings) {

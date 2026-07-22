@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/task.dart';
+import '../models/checklist.dart';
+import '../models/comment.dart';
+import '../models/activity_log.dart';
 import '../repositories/task_repository.dart';
 import '../services/connectivity_service.dart';
 
@@ -17,7 +20,16 @@ class TaskState {
     this.isLoadingDetails = false,
     this.isSubmitting = false,
     this.errorMessage,
-  }) : tasks = List.unmodifiable(tasks);
+    List<TaskChecklist> checklists = const [],
+    List<TaskComment> comments = const [],
+    List<ActivityLog> activities = const [],
+    this.isLoadingChecklists = false,
+    this.isLoadingComments = false,
+    this.isLoadingActivities = false,
+  })  : tasks = List.unmodifiable(tasks),
+        checklists = List.unmodifiable(checklists),
+        comments = List.unmodifiable(comments),
+        activities = List.unmodifiable(activities);
 
   final List<Task> tasks;
   final Task? selectedTask;
@@ -28,6 +40,14 @@ class TaskState {
   final bool isLoadingDetails;
   final bool isSubmitting;
   final String? errorMessage;
+  final List<TaskChecklist> checklists;
+  final List<TaskComment> comments;
+  final List<ActivityLog> activities;
+  final bool isLoadingChecklists;
+  final bool isLoadingComments;
+  final bool isLoadingActivities;
+
+  int get completedChecklistCount => checklists.where((c) => c.isDone).length;
 
   List<Task> get filteredTasks {
     final query = searchQuery.trim().toLowerCase();
@@ -57,6 +77,12 @@ class TaskState {
     bool? isSubmitting,
     String? errorMessage,
     bool clearError = false,
+    List<TaskChecklist>? checklists,
+    List<TaskComment>? comments,
+    List<ActivityLog>? activities,
+    bool? isLoadingChecklists,
+    bool? isLoadingComments,
+    bool? isLoadingActivities,
   }) {
     return TaskState(
       tasks: tasks ?? this.tasks,
@@ -74,6 +100,12 @@ class TaskState {
       isLoadingDetails: isLoadingDetails ?? this.isLoadingDetails,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      checklists: checklists ?? this.checklists,
+      comments: comments ?? this.comments,
+      activities: activities ?? this.activities,
+      isLoadingChecklists: isLoadingChecklists ?? this.isLoadingChecklists,
+      isLoadingComments: isLoadingComments ?? this.isLoadingComments,
+      isLoadingActivities: isLoadingActivities ?? this.isLoadingActivities,
     );
   }
 }
@@ -303,5 +335,140 @@ class TaskViewModel extends StateNotifier<TaskState> {
     return message.isEmpty
         ? 'Something went wrong. Please try again.'
         : message;
+  }
+
+  // ─── CHECKLIST METHODS ───────────────────────────────────────────────────
+  Future<void> loadChecklists(String taskId) async {
+    state = state.copyWith(isLoadingChecklists: true);
+    try {
+      final items = await _repository.getChecklists(
+        taskId,
+        isOnline: _connectivityService.isOnline,
+      );
+      state = state.copyWith(checklists: items, isLoadingChecklists: false);
+    } catch (e) {
+      state = state.copyWith(isLoadingChecklists: false, errorMessage: _messageFrom(e));
+    }
+  }
+
+  Future<bool> addChecklist(String taskId, String title) async {
+    try {
+      final item = await _repository.createChecklist(
+        taskId: taskId,
+        title: title,
+        isOnline: _connectivityService.isOnline,
+      );
+      final updated = [...state.checklists, item];
+      state = state.copyWith(checklists: updated);
+      // Reload activities in case an audit log was created
+      loadActivities(taskId);
+      return true;
+    } catch (e) {
+      state = state.copyWith(errorMessage: _messageFrom(e));
+      return false;
+    }
+  }
+
+  Future<void> toggleChecklist(String id, String taskId, bool isDone) async {
+    final updatedList = state.checklists.map((c) {
+      return c.id == id ? c.copyWith(isDone: isDone) : c;
+    }).toList();
+    state = state.copyWith(checklists: updatedList);
+
+    try {
+      await _repository.toggleChecklist(
+        id: id,
+        taskId: taskId,
+        isDone: isDone,
+        isOnline: _connectivityService.isOnline,
+      );
+      loadActivities(taskId);
+    } catch (e) {
+      state = state.copyWith(errorMessage: _messageFrom(e));
+    }
+  }
+
+  Future<void> deleteChecklist(String id, String taskId) async {
+    final updatedList = state.checklists.where((c) => c.id != id).toList();
+    state = state.copyWith(checklists: updatedList);
+
+    try {
+      await _repository.deleteChecklist(
+        id: id,
+        taskId: taskId,
+        isOnline: _connectivityService.isOnline,
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: _messageFrom(e));
+    }
+  }
+
+  // ─── COMMENT METHODS ──────────────────────────────────────────────────────
+  Future<void> loadComments(String taskId) async {
+    state = state.copyWith(isLoadingComments: true);
+    try {
+      final comments = await _repository.getComments(
+        taskId,
+        isOnline: _connectivityService.isOnline,
+      );
+      state = state.copyWith(comments: comments, isLoadingComments: false);
+    } catch (e) {
+      state = state.copyWith(isLoadingComments: false, errorMessage: _messageFrom(e));
+    }
+  }
+
+  Future<bool> addComment(String taskId, String content) async {
+    final currentUser = _ref.read(authViewModelProvider).user;
+    if (currentUser == null) {
+      state = state.copyWith(errorMessage: 'You must be logged in to comment.');
+      return false;
+    }
+
+    try {
+      final comment = await _repository.createComment(
+        taskId: taskId,
+        content: content,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userAvatarUrl: currentUser.avatarUrl,
+        isOnline: _connectivityService.isOnline,
+      );
+      final updated = [...state.comments, comment];
+      state = state.copyWith(comments: updated);
+      loadActivities(taskId);
+      return true;
+    } catch (e) {
+      state = state.copyWith(errorMessage: _messageFrom(e));
+      return false;
+    }
+  }
+
+  Future<void> deleteComment(String id, String taskId) async {
+    final updatedList = state.comments.where((c) => c.id != id).toList();
+    state = state.copyWith(comments: updatedList);
+
+    try {
+      await _repository.deleteComment(
+        id: id,
+        taskId: taskId,
+        isOnline: _connectivityService.isOnline,
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: _messageFrom(e));
+    }
+  }
+
+  // ─── ACTIVITY LOG METHODS ─────────────────────────────────────────────────
+  Future<void> loadActivities(String taskId) async {
+    state = state.copyWith(isLoadingActivities: true);
+    try {
+      final activities = await _repository.getActivities(
+        taskId,
+        isOnline: _connectivityService.isOnline,
+      );
+      state = state.copyWith(activities: activities, isLoadingActivities: false);
+    } catch (e) {
+      state = state.copyWith(isLoadingActivities: false);
+    }
   }
 }

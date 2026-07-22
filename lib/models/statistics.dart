@@ -1,22 +1,77 @@
+class MemberTaskItem {
+  final String userId;
+  final String userName;
+  final int count;
+
+  MemberTaskItem({required this.userId, required this.userName, required this.count});
+
+  factory MemberTaskItem.fromJson(Map<String, dynamic> json) {
+    return MemberTaskItem(
+      userId: json['userId'] ?? json['user_id'] ?? '',
+      userName: json['userName'] ?? json['user_name'] ?? 'Member',
+      count: (json['count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class TaskBriefItem {
+  final String id;
+  final String title;
+  final String projectId;
+  final String status;
+  final String priority;
+  final DateTime? dueDate;
+
+  TaskBriefItem({
+    required this.id,
+    required this.title,
+    required this.projectId,
+    required this.status,
+    required this.priority,
+    this.dueDate,
+  });
+
+  factory TaskBriefItem.fromJson(Map<String, dynamic> json) {
+    return TaskBriefItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      projectId: json['projectId'] ?? json['project_id'] ?? '',
+      status: json['status'] as String,
+      priority: json['priority'] as String,
+      dueDate: json['dueDate'] != null
+          ? DateTime.parse(json['dueDate'] as String)
+          : (json['due_date'] != null ? DateTime.parse(json['due_date'] as String) : null),
+    );
+  }
+}
+
 class Statistics {
   final int totalProjects;
   final int totalTasks;
   final int myTasks;
   final int completedTasks;
+  final int inProgressTasks;
   final int pendingTasks;
   final int overdueTasks;
   final Map<String, int> taskStatusDistribution;
   final Map<String, int> taskPriorityDistribution;
+  final List<MemberTaskItem> tasksByMember;
+  final List<TaskBriefItem> upcomingTasksList;
+  final List<TaskBriefItem> overdueTasksList;
 
   Statistics({
     required this.totalProjects,
     required this.totalTasks,
     this.myTasks = 0,
     required this.completedTasks,
+    this.inProgressTasks = 0,
     required this.pendingTasks,
     required this.overdueTasks,
     required this.taskStatusDistribution,
     required this.taskPriorityDistribution,
+    this.tasksByMember = const [],
+    this.upcomingTasksList = const [],
+    this.overdueTasksList = const [],
   });
 
   /// Tỉ lệ hoàn thành (0.0 → 1.0)
@@ -29,7 +84,7 @@ class Statistics {
   int get todoCount => taskStatusDistribution['TODO'] ?? 0;
 
   /// Số task đang làm
-  int get inProgressCount => taskStatusDistribution['IN_PROGRESS'] ?? 0;
+  int get inProgressCount => inProgressTasks > 0 ? inProgressTasks : (taskStatusDistribution['IN_PROGRESS'] ?? 0);
 
   /// Số task đã xong
   int get doneCount => taskStatusDistribution['DONE'] ?? 0;
@@ -43,64 +98,41 @@ class Statistics {
   /// Số task ưu tiên cao
   int get highCount => taskPriorityDistribution['HIGH'] ?? 0;
 
-  Statistics copyWith({
-    int? totalProjects,
-    int? totalTasks,
-    int? myTasks,
-    int? completedTasks,
-    int? pendingTasks,
-    int? overdueTasks,
-    Map<String, int>? taskStatusDistribution,
-    Map<String, int>? taskPriorityDistribution,
-  }) {
-    return Statistics(
-      totalProjects: totalProjects ?? this.totalProjects,
-      totalTasks: totalTasks ?? this.totalTasks,
-      myTasks: myTasks ?? this.myTasks,
-      completedTasks: completedTasks ?? this.completedTasks,
-      pendingTasks: pendingTasks ?? this.pendingTasks,
-      overdueTasks: overdueTasks ?? this.overdueTasks,
-      taskStatusDistribution:
-          taskStatusDistribution ?? this.taskStatusDistribution,
-      taskPriorityDistribution:
-          taskPriorityDistribution ?? this.taskPriorityDistribution,
-    );
-  }
-
   factory Statistics.fromJson(Map<String, dynamic> json) {
-    return Statistics(
-      totalProjects: json['total_projects'] as int? ?? 0,
-      totalTasks: json['total_tasks'] as int? ?? 0,
-      myTasks: (json['my_tasks'] ?? json['myTasks']) as int? ?? 0,
-      completedTasks: json['completed_tasks'] as int? ?? 0,
-      pendingTasks: json['pending_tasks'] as int? ?? 0,
-      overdueTasks: json['overdue_tasks'] as int? ?? 0,
-      taskStatusDistribution: Map<String, int>.from(
-        (json['task_status_distribution'] as Map<String, dynamic>?)?.map(
-              (k, v) => MapEntry(k, v as int),
-            ) ??
-            {},
-      ),
-      taskPriorityDistribution: Map<String, int>.from(
-        (json['task_priority_distribution'] as Map<String, dynamic>?)?.map(
-              (k, v) => MapEntry(k, v as int),
-            ) ??
-            {},
-      ),
-    );
-  }
+    Map<String, int> parseMap(dynamic mapRaw) {
+      if (mapRaw is Map) {
+        return mapRaw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+      }
+      return {};
+    }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'total_projects': totalProjects,
-      'total_tasks': totalTasks,
-      'my_tasks': myTasks,
-      'completed_tasks': completedTasks,
-      'pending_tasks': pendingTasks,
-      'overdue_tasks': overdueTasks,
-      'task_status_distribution': taskStatusDistribution,
-      'task_priority_distribution': taskPriorityDistribution,
-    };
+    final statusMap = parseMap(json['tasksByStatus'] ?? json['task_status_distribution']);
+    final priorityMap = parseMap(json['tasksByPriority'] ?? json['task_priority_distribution']);
+
+    final memberRaw = json['tasksByMember'] as List?;
+    final upcomingRaw = json['upcomingTasksList'] as List?;
+    final overdueRaw = json['overdueTasksList'] as List?;
+
+    return Statistics(
+      totalProjects: (json['totalProjects'] ?? json['total_projects']) as int? ?? 0,
+      totalTasks: (json['totalTasks'] ?? json['total_tasks']) as int? ?? 0,
+      myTasks: (json['myTasks'] ?? json['my_tasks']) as int? ?? 0,
+      completedTasks: (json['completedTasks'] ?? json['completed_tasks']) as int? ?? 0,
+      inProgressTasks: (json['inProgressTasks'] ?? statusMap['IN_PROGRESS']) as int? ?? 0,
+      pendingTasks: (json['pendingTasks'] ?? json['pending_tasks']) as int? ?? 0,
+      overdueTasks: (json['overdueTasks'] ?? json['overdue_tasks']) as int? ?? 0,
+      taskStatusDistribution: statusMap,
+      taskPriorityDistribution: priorityMap,
+      tasksByMember: memberRaw != null
+          ? memberRaw.whereType<Map>().map((m) => MemberTaskItem.fromJson(Map<String, dynamic>.from(m))).toList()
+          : [],
+      upcomingTasksList: upcomingRaw != null
+          ? upcomingRaw.whereType<Map>().map((m) => TaskBriefItem.fromJson(Map<String, dynamic>.from(m))).toList()
+          : [],
+      overdueTasksList: overdueRaw != null
+          ? overdueRaw.whereType<Map>().map((m) => TaskBriefItem.fromJson(Map<String, dynamic>.from(m))).toList()
+          : [],
+    );
   }
 
   /// Trả mock data cho trường hợp chưa có backend
@@ -109,6 +141,7 @@ class Statistics {
       totalProjects: 3,
       totalTasks: 24,
       completedTasks: 12,
+      inProgressTasks: 4,
       pendingTasks: 10,
       overdueTasks: 2,
       taskStatusDistribution: {'TODO': 8, 'IN_PROGRESS': 4, 'DONE': 12},

@@ -74,4 +74,77 @@ export class TasksRepository {
       _count: { priority: true },
     });
   }
+
+  // ── Checklist Repository Methods ─────────────────────────────────────────
+  async createChecklist(data: Prisma.TaskChecklistUncheckedCreateInput) {
+    return this.prisma.taskChecklist.create({ data });
+  }
+
+  async findChecklists(taskId: string) {
+    return this.prisma.taskChecklist.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async findChecklistOne(id: string) {
+    return this.prisma.taskChecklist.findUnique({
+      where: { id },
+      include: { task: { include: { project: true } } },
+    });
+  }
+
+  async updateChecklist(id: string, data: Prisma.TaskChecklistUncheckedUpdateInput) {
+    return this.prisma.taskChecklist.update({ where: { id }, data });
+  }
+
+  async deleteChecklist(id: string) {
+    return this.prisma.taskChecklist.delete({ where: { id } });
+  }
+
+  // ── Comment Repository Methods ───────────────────────────────────────────
+  async createComment(data: Prisma.TaskCommentUncheckedCreateInput) {
+    return this.prisma.taskComment.create({
+      data,
+      include: {
+        user: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  }
+
+  async findComments(taskId: string) {
+    return this.prisma.taskComment.findMany({
+      where: { taskId },
+      include: {
+        user: { select: { id: true, name: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async findCommentOne(id: string) {
+    return this.prisma.taskComment.findUnique({
+      where: { id },
+      include: { task: { include: { project: true } } },
+    });
+  }
+
+  async deleteComment(id: string) {
+    return this.prisma.taskComment.delete({ where: { id } });
+  }
+
+  // ── AuditLog Repository Methods ──────────────────────────────────────────
+  async createAuditLog(data: Prisma.AuditLogUncheckedCreateInput) {
+    return this.prisma.auditLog.create({ data });
+  }
+
+  async findAuditLogs(taskId: string) {
+    return this.prisma.auditLog.findMany({
+      where: { entity: 'Task', entityId: taskId },
+      include: {
+        user: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
