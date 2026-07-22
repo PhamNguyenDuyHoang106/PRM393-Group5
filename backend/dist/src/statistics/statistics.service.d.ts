@@ -11,14 +11,32 @@ export interface ProjectStats {
     mediumCount: number;
     highCount: number;
 }
+export interface MemberTaskDistribution {
+    userId: string;
+    userName: string;
+    count: number;
+}
+export interface TaskSummaryItem {
+    id: string;
+    title: string;
+    projectId: string;
+    status: string;
+    priority: string;
+    dueDate: Date | null;
+}
 export interface DashboardStats {
     totalProjects: number;
     totalTasks: number;
     myTasks: number;
     completedTasks: number;
+    inProgressTasks: number;
+    overdueTasks: number;
     overallCompletionRate: number;
     tasksByStatus: Record<string, number>;
     tasksByPriority: Record<string, number>;
+    tasksByMember: MemberTaskDistribution[];
+    upcomingTasksList: TaskSummaryItem[];
+    overdueTasksList: TaskSummaryItem[];
     projectStats: ProjectStats[];
 }
 export declare class StatisticsService {

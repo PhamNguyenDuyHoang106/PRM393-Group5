@@ -21,6 +21,8 @@ class ManagerDashboardScreen extends ConsumerWidget {
     final projectCount = stats?.totalProjects ?? 0;
     final totalTasksCount = stats?.totalTasks ?? 0;
     final completedTasksCount = stats?.completedTasks ?? 0;
+    final inProgressTasksCount = stats?.inProgressCount ?? 0;
+    final overdueTasksCount = stats?.overdueTasks ?? 0;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (dashboardState.statistics == null &&
@@ -64,75 +66,218 @@ class ManagerDashboardScreen extends ConsumerWidget {
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good morning, ${user?.name ?? "Manager"}!',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'Total Projects',
-                      projectCount.toString(),
-                      Icons.folder,
-                      Colors.blue,
-                      '/projects',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Good morning, ${user?.name ?? "Manager"}!',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'Total Tasks',
-                      totalTasksCount.toString(),
-                      Icons.assignment,
-                      Colors.amber,
-                      '/tasks',
+                    const SizedBox(height: 16),
+                    
+                    // ── 5 STAT CARDS ──────────────────────────────────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Projects',
+                            projectCount.toString(),
+                            Icons.folder,
+                            Colors.blue,
+                            '/projects',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Tasks',
+                            totalTasksCount.toString(),
+                            Icons.assignment,
+                            Colors.amber,
+                            '/tasks',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMetricCard(
-                      context,
-                      'Completed Tasks',
-                      completedTasksCount.toString(),
-                      Icons.check_circle,
-                      Colors.green,
-                      '/tasks',
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Completed',
+                            completedTasksCount.toString(),
+                            Icons.check_circle,
+                            Colors.green,
+                            '/tasks',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'In Progress',
+                            inProgressTasksCount.toString(),
+                            Icons.pending_actions,
+                            Colors.orange,
+                            '/tasks',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildMetricCard(
+                            context,
+                            'Overdue',
+                            overdueTasksCount.toString(),
+                            Icons.warning_amber_rounded,
+                            Colors.red,
+                            '/tasks',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    
+                    _buildOverallProgressBar(totalTasksCount, completedTasksCount),
+                    const SizedBox(height: 20),
+
+                    // ── MEMBER TASK DISTRIBUTION ──────────────────────────────────
+                    if (stats != null && stats.tasksByMember.isNotEmpty) ...[
+                      const Text(
+                        'Tasks by Member',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: stats.tasksByMember.map((m) {
+                              final memberPercentage = totalTasksCount > 0 ? (m.count / totalTasksCount) : 0.0;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(m.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        Text('${m.count} tasks (${(memberPercentage * 100).toStringAsFixed(0)}%)'),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: memberPercentage,
+                                        minHeight: 6,
+                                        backgroundColor: Colors.grey.shade200,
+                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.indigo),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // ── OVERDUE TASKS LIST ────────────────────────────────────────
+                    if (stats != null && stats.overdueTasksList.isNotEmpty) ...[
+                      const Row(
+                        children: [
+                          Icon(Icons.error_outline_rounded, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text(
+                            'Overdue Tasks',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.overdueTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.overdueTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Due: ${_formatDueDate(item.dueDate)}'),
+                              trailing: Chip(
+                                label: Text(item.priority),
+                                backgroundColor: Colors.red.shade50,
+                                labelStyle: const TextStyle(color: Colors.red, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // ── UPCOMING TASKS LIST ───────────────────────────────────────
+                    if (stats != null && stats.upcomingTasksList.isNotEmpty) ...[
+                      const Row(
+                        children: [
+                          Icon(Icons.event_available_rounded, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Text(
+                            'Tasks Due Soon (Next 3 Days)',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.upcomingTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.upcomingTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Due: ${_formatDueDate(item.dueDate)}'),
+                              trailing: Chip(
+                                label: Text(item.status),
+                                backgroundColor: Colors.orange.shade50,
+                                labelStyle: const TextStyle(color: Colors.orange, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Progress Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () => context.push('/stats'),
-                    child: const Text('View Charts'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _buildOverallProgressBar(totalTasksCount, completedTasksCount),
-            ],
-          ),
-        ),
       ),
     );
+  }
+
+  String _formatDueDate(DateTime? date) {
+    if (date == null) return 'No due date';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildOverallProgressBar(int total, int completed) {

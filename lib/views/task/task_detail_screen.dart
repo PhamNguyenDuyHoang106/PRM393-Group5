@@ -8,6 +8,9 @@ import '../../providers/providers.dart';
 import '../../viewmodels/task_viewmodel.dart';
 import '../../widgets/error_widget.dart';
 import '../../widgets/loading_widget.dart';
+import '../../widgets/checklist_widget.dart';
+import '../../widgets/comment_section_widget.dart';
+import '../../widgets/activity_timeline_widget.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   const TaskDetailScreen({super.key, required this.taskId});
@@ -22,12 +25,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_loadTask);
+    Future.microtask(_loadAllData);
   }
 
-  Future<void> _loadTask() {
-    return ref.read(taskViewModelProvider.notifier).loadTask(widget.taskId);
+  Future<void> _loadAllData() async {
+    final notifier = ref.read(taskViewModelProvider.notifier);
+    await notifier.loadTask(widget.taskId);
+    notifier.loadChecklists(widget.taskId);
+    notifier.loadComments(widget.taskId);
+    notifier.loadActivities(widget.taskId);
   }
+
+  Future<void> _loadTask() => _loadAllData();
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +78,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         task,
         canUpdateStatus: canUpdateStatus,
         isManager: isManager,
+        currentUserId: currentUser?.id ?? '',
       ),
     );
   }
@@ -92,6 +102,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     Task? task, {
     required bool canUpdateStatus,
     required bool isManager,
+    required String currentUserId,
   }) {
     if (state.isLoadingDetails && task == null) {
       return const LoadingWidget(message: 'Loading task details...');
@@ -222,6 +233,31 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 label: const Text('Update Status'),
               ),
           ],
+          const SizedBox(height: AppConstants.paddingLg),
+          ChecklistWidget(
+            taskId: task.id,
+            checklists: state.checklists,
+            isLoading: state.isLoadingChecklists,
+            onAddChecklist: (title) => ref.read(taskViewModelProvider.notifier).addChecklist(task.id, title),
+            onToggleChecklist: (id, isDone) => ref.read(taskViewModelProvider.notifier).toggleChecklist(id, task.id, isDone),
+            onDeleteChecklist: (id) => ref.read(taskViewModelProvider.notifier).deleteChecklist(id, task.id),
+          ),
+          const SizedBox(height: AppConstants.paddingLg),
+          CommentSectionWidget(
+            taskId: task.id,
+            comments: state.comments,
+            isLoading: state.isLoadingComments,
+            currentUserId: currentUserId,
+            isManager: isManager,
+            onAddComment: (content) => ref.read(taskViewModelProvider.notifier).addComment(task.id, content),
+            onDeleteComment: (commentId) => ref.read(taskViewModelProvider.notifier).deleteComment(commentId, task.id),
+          ),
+          const SizedBox(height: AppConstants.paddingLg),
+          ActivityTimelineWidget(
+            taskId: task.id,
+            activities: state.activities,
+            isLoading: state.isLoadingActivities,
+          ),
         ],
       ),
     );

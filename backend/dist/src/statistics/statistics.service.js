@@ -19,6 +19,8 @@ let StatisticsService = class StatisticsService {
     }
     async getDashboard(userId, role) {
         const isManager = role.toLowerCase() === 'manager';
+        const now = new Date();
+        const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
         const projectFilter = isManager
             ? { OR: [{ ownerId: userId }, { members: { some: { userId } } }] }
             : { members: { some: { userId } } };
@@ -34,7 +36,7 @@ let StatisticsService = class StatisticsService {
             projectId: { in: projectIds },
             ...(isManager ? {} : { assignedTo: userId }),
         };
-        const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks] = await Promise.all([
+        const [tasksByStatus, tasksByPriority, myTaskCount, totalTasks, overdueTaskCount, tasksByMemberGroup, upcomingTasks, overdueTasks,] = await Promise.all([
             this.prisma.task.groupBy({
                 by: ['status'],
                 where: visibleTaskFilter,
@@ -51,20 +53,84 @@ let StatisticsService = class StatisticsService {
             this.prisma.task.count({
                 where: visibleTaskFilter,
             }),
+            this.prisma.task.count({
+                where: {
+                    ...visibleTaskFilter,
+                    status: { not: 'DONE' },
+                    dueDate: { lt: now },
+                },
+            }),
+            this.prisma.task.groupBy({
+                by: ['assignedTo'],
+                where: visibleTaskFilter,
+                _count: { assignedTo: true },
+            }),
+            this.prisma.task.findMany({
+                where: {
+                    ...visibleTaskFilter,
+                    status: { not: 'DONE' },
+                    dueDate: { gte: now, lte: in3Days },
+                },
+                select: {
+                    id: true,
+                    title: true,
+                    projectId: true,
+                    status: true,
+                    priority: true,
+                    dueDate: true,
+                },
+                orderBy: { dueDate: 'asc' },
+                take: 5,
+            }),
+            this.prisma.task.findMany({
+                where: {
+                    ...visibleTaskFilter,
+                    status: { not: 'DONE' },
+                    dueDate: { lt: now },
+                },
+                select: {
+                    id: true,
+                    title: true,
+                    projectId: true,
+                    status: true,
+                    priority: true,
+                    dueDate: true,
+                },
+                orderBy: { dueDate: 'asc' },
+                take: 5,
+            }),
         ]);
         const statusMap = this._toMap(tasksByStatus, 'status');
         const priorityMap = this._toMap(tasksByPriority, 'priority');
         const doneCount = statusMap['DONE'] ?? 0;
+        const inProgressCount = statusMap['IN_PROGRESS'] ?? 0;
+        const memberIds = tasksByMemberGroup
+            .map((g) => g.assignedTo)
+            .filter((id) => id != null);
+        const users = memberIds.length > 0
+            ? await this.prisma.user.findMany({
+                where: { id: { in: memberIds } },
+                select: { id: true, name: true },
+            })
+            : [];
+        const userNameMap = new Map(users.map((u) => [u.id, u.name]));
+        const tasksByMember = tasksByMemberGroup.map((g) => ({
+            userId: g.assignedTo ?? 'Unassigned',
+            userName: g.assignedTo ? (userNameMap.get(g.assignedTo) ?? 'Member') : 'Unassigned',
+            count: g._count.assignedTo,
+        }));
         const projectStats = await this._getProjectStats(projectIds, isManager ? undefined : userId);
         return {
             totalProjects: projectIds.length,
             totalTasks,
             myTasks: myTaskCount,
             completedTasks: doneCount,
+            inProgressTasks: inProgressCount,
+            overdueTasks: overdueTaskCount,
             overallCompletionRate: totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0,
             tasksByStatus: {
                 TODO: statusMap['TODO'] ?? 0,
-                IN_PROGRESS: statusMap['IN_PROGRESS'] ?? 0,
+                IN_PROGRESS: inProgressCount,
                 DONE: doneCount,
             },
             tasksByPriority: {
@@ -72,6 +138,9 @@ let StatisticsService = class StatisticsService {
                 MEDIUM: priorityMap['MEDIUM'] ?? 0,
                 HIGH: priorityMap['HIGH'] ?? 0,
             },
+            tasksByMember,
+            upcomingTasksList: upcomingTasks,
+            overdueTasksList: overdueTasks,
             projectStats,
         };
     }
@@ -134,9 +203,14 @@ let StatisticsService = class StatisticsService {
             totalTasks: 0,
             myTasks: 0,
             completedTasks: 0,
+            inProgressTasks: 0,
+            overdueTasks: 0,
             overallCompletionRate: 0,
             tasksByStatus: { TODO: 0, IN_PROGRESS: 0, DONE: 0 },
             tasksByPriority: { LOW: 0, MEDIUM: 0, HIGH: 0 },
+            tasksByMember: [],
+            upcomingTasksList: [],
+            overdueTasksList: [],
             projectStats: [],
         };
     }

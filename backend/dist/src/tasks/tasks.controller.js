@@ -17,6 +17,8 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const tasks_service_1 = require("./tasks.service");
 const task_dto_1 = require("./dto/task.dto");
+const checklist_dto_1 = require("./dto/checklist.dto");
+const comment_dto_1 = require("./dto/comment.dto");
 const auth_guard_1 = require("../guards/auth.guard");
 const user_decorator_1 = require("../decorators/user.decorator");
 let TasksController = class TasksController {
@@ -44,6 +46,30 @@ let TasksController = class TasksController {
     }
     async delete(id, user) {
         await this.tasksService.delete(id, user.id);
+    }
+    async findChecklists(taskId, user) {
+        return this.tasksService.findChecklists(taskId, user.id);
+    }
+    async createChecklist(taskId, dto, user) {
+        return this.tasksService.createChecklist(taskId, dto.title, user.id, dto.id);
+    }
+    async updateChecklist(id, dto, user) {
+        return this.tasksService.updateChecklist(id, dto, user.id);
+    }
+    async deleteChecklist(id, user) {
+        await this.tasksService.deleteChecklist(id, user.id);
+    }
+    async findComments(taskId, user) {
+        return this.tasksService.findComments(taskId, user.id);
+    }
+    async createComment(taskId, dto, user) {
+        return this.tasksService.createComment(taskId, dto.content, user.id, dto.id);
+    }
+    async deleteComment(id, user) {
+        await this.tasksService.deleteComment(id, user.id, user.role);
+    }
+    async findActivities(taskId, user) {
+        return this.tasksService.findActivities(taskId, user.id);
     }
 };
 exports.TasksController = TasksController;
@@ -120,6 +146,83 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], TasksController.prototype, "delete", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'List checklist items for a task' }),
+    (0, common_1.Get)('tasks/:taskId/checklists'),
+    __param(0, (0, common_1.Param)('taskId')),
+    __param(1, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "findChecklists", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Add a checklist item to a task' }),
+    (0, common_1.Post)('tasks/:taskId/checklists'),
+    __param(0, (0, common_1.Param)('taskId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, checklist_dto_1.CreateChecklistDto, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "createChecklist", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Update/Toggle a checklist item' }),
+    (0, common_1.Patch)('tasks/checklists/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, checklist_dto_1.UpdateChecklistDto, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "updateChecklist", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Delete a checklist item' }),
+    (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
+    (0, common_1.Delete)('tasks/checklists/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "deleteChecklist", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'List comments for a task' }),
+    (0, common_1.Get)('tasks/:taskId/comments'),
+    __param(0, (0, common_1.Param)('taskId')),
+    __param(1, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "findComments", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Add a comment to a task' }),
+    (0, common_1.Post)('tasks/:taskId/comments'),
+    __param(0, (0, common_1.Param)('taskId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, comment_dto_1.CreateCommentDto, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "createComment", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Delete a comment (Author or Manager only)' }),
+    (0, common_1.HttpCode)(common_1.HttpStatus.NO_CONTENT),
+    (0, common_1.Delete)('tasks/comments/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "deleteComment", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Get activity history (AuditLog) for a task' }),
+    (0, common_1.Get)('tasks/:taskId/activities'),
+    __param(0, (0, common_1.Param)('taskId')),
+    __param(1, (0, user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], TasksController.prototype, "findActivities", null);
 exports.TasksController = TasksController = __decorate([
     (0, swagger_1.ApiTags)('Tasks'),
     (0, swagger_1.ApiBearerAuth)(),

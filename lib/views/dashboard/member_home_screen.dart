@@ -124,27 +124,96 @@ class MemberHomeScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Progress Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () => context.push('/stats'),
-                    child: const Text('View Charts'),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    _buildOverallProgressBar(assignedTasksCount, completedTasksCount),
+                    const SizedBox(height: 20),
+
+                    if (stats != null && stats.overdueTasksList.isNotEmpty) ...[
+                      const Row(
+                        children: [
+                          Icon(Icons.error_outline_rounded, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text(
+                            'My Overdue Tasks',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.overdueTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.overdueTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Due: ${_formatDueDate(item.dueDate)}'),
+                              trailing: Chip(
+                                label: Text(item.priority),
+                                backgroundColor: Colors.red.shade50,
+                                labelStyle: const TextStyle(color: Colors.red, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    if (stats != null && stats.upcomingTasksList.isNotEmpty) ...[
+                      const Row(
+                        children: [
+                          Icon(Icons.event_available_rounded, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Text(
+                            'My Upcoming Tasks',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: stats.upcomingTasksList.length,
+                          separatorBuilder: (ctx, i) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) {
+                            final item = stats.upcomingTasksList[i];
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text('Due: ${_formatDueDate(item.dueDate)}'),
+                              trailing: Chip(
+                                label: Text(item.status),
+                                backgroundColor: Colors.orange.shade50,
+                                labelStyle: const TextStyle(color: Colors.orange, fontSize: 11),
+                              ),
+                              onTap: () => context.push('/tasks/${item.id}'),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              _buildOverallProgressBar(assignedTasksCount, completedTasksCount),
-            ],
-          ),
-        ),
       ),
     );
+  }
+
+  String _formatDueDate(DateTime? date) {
+    if (date == null) return 'No due date';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildOverallProgressBar(int total, int completed) {

@@ -1,5 +1,7 @@
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto, UpdateTaskStatusDto } from './dto/task.dto';
+import { CreateChecklistDto, UpdateChecklistDto } from './dto/checklist.dto';
+import { CreateCommentDto } from './dto/comment.dto';
 export declare class TasksController {
     private readonly tasksService;
     constructor(tasksService: TasksService);
@@ -98,4 +100,70 @@ export declare class TasksController {
         dueDate: Date | null;
     }>;
     delete(id: string, user: any): Promise<void>;
+    findChecklists(taskId: string, user: any): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }[]>;
+    createChecklist(taskId: string, dto: CreateChecklistDto, user: any): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }>;
+    updateChecklist(id: string, dto: UpdateChecklistDto, user: any): Promise<{
+        id: string;
+        createdAt: Date;
+        title: string;
+        taskId: string;
+        isDone: boolean;
+    }>;
+    deleteChecklist(id: string, user: any): Promise<void>;
+    findComments(taskId: string, user: any): Promise<({
+        user: {
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string;
+        content: string;
+        taskId: string;
+    })[]>;
+    createComment(taskId: string, dto: CreateCommentDto, user: any): Promise<{
+        user: {
+            id: string;
+            name: string;
+            avatarUrl: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string;
+        content: string;
+        taskId: string;
+    }>;
+    deleteComment(id: string, user: any): Promise<void>;
+    findActivities(taskId: string, user: any): Promise<({
+        user: {
+            id: string;
+            name: string;
+        } | null;
+    } & {
+        id: string;
+        createdAt: Date;
+        userId: string | null;
+        action: string;
+        entity: string;
+        entityId: string;
+        ip: string | null;
+        userAgent: string | null;
+        oldData: string | null;
+        newData: string | null;
+    })[]>;
 }

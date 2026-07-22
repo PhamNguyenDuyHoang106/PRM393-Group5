@@ -10,6 +10,9 @@ import '../models/pending_action.dart';
 import '../models/project.dart';
 import '../models/task.dart';
 import '../models/user.dart';
+import '../models/checklist.dart';
+import '../models/comment.dart';
+import '../models/activity_log.dart';
 
 class TaskRepository {
   TaskRepository({DbHelper? dbHelper, Dio? dio, Uuid? uuid})
@@ -440,6 +443,230 @@ class TaskRepository {
         createdAt: now.subtract(const Duration(days: 5)),
       ),
     ];
+  }
+
+  // ─── CHECKLIST METHODS ───────────────────────────────────────────────────
+  Future<List<TaskChecklist>> getChecklists(String taskId, {required bool isOnline}) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get('/tasks/$taskId/checklists');
+        final raw = _unwrap(response.data);
+        if (raw is List) {
+          final items = raw
+              .whereType<Map>()
+              .map((json) => TaskChecklist.fromJson(Map<String, dynamic>.from(json)))
+              .toList();
+          await _dbHelper.cacheChecklists(taskId, items);
+          return items;
+        }
+      } catch (_) {}
+    }
+    return _dbHelper.getCachedChecklists(taskId);
+  }
+
+  Future<TaskChecklist> createChecklist({
+    required String taskId,
+    required String title,
+    required bool isOnline,
+  }) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) throw const TaskException('Checklist title cannot be empty.');
+    if (trimmed.length > 100) throw const TaskException('Checklist title cannot exceed 100 characters.');
+
+    final item = TaskChecklist(
+      id: _uuid.v4(),
+      taskId: taskId,
+      title: trimmed,
+      isDone: false,
+      createdAt: DateTime.now(),
+    );
+
+    await _dbHelper.saveCachedChecklist(item);
+
+    if (isOnline) {
+      try {
+        final response = await _dio.post(
+          '/tasks/$taskId/checklists',
+          data: {'id': item.id, 'title': item.title},
+        );
+        final raw = _unwrap(response.data);
+        if (raw is Map) {
+          final synced = TaskChecklist.fromJson(Map<String, dynamic>.from(raw));
+          await _dbHelper.saveCachedChecklist(synced);
+          return synced;
+        }
+      } catch (_) {}
+    }
+
+    await _enqueueAction(
+      'CREATE_CHECKLIST',
+      {'id': item.id, 'taskId': taskId, 'title': item.title},
+    );
+
+    return item;
+  }
+
+  Future<TaskChecklist> toggleChecklist({
+    required String id,
+    required String taskId,
+    required bool isDone,
+    required bool isOnline,
+  }) async {
+    final cached = await _dbHelper.getCachedChecklists(taskId);
+    final existing = cached.firstWhere((c) => c.id == id, orElse: () => TaskChecklist(
+      id: id,
+      taskId: taskId,
+      title: 'Item',
+      isDone: !isDone,
+      createdAt: DateTime.now(),
+    ));
+
+    final updated = existing.copyWith(isDone: isDone);
+    await _dbHelper.saveCachedChecklist(updated);
+
+    if (isOnline) {
+      try {
+        final response = await _dio.patch('/tasks/checklists/$id', data: {'isDone': isDone});
+        final raw = _unwrap(response.data);
+        if (raw is Map) {
+          final synced = TaskChecklist.fromJson(Map<String, dynamic>.from(raw));
+          await _dbHelper.saveCachedChecklist(synced);
+          return synced;
+        }
+      } catch (_) {}
+    }
+
+    await _enqueueAction(
+      'UPDATE_CHECKLIST',
+      {'id': id, 'taskId': taskId, 'isDone': isDone},
+    );
+
+    return updated;
+  }
+
+  Future<void> deleteChecklist({
+    required String id,
+    required String taskId,
+    required bool isOnline,
+  }) async {
+    await _dbHelper.deleteCachedChecklist(id);
+
+    if (isOnline) {
+      try {
+        await _dio.delete('/tasks/checklists/$id');
+        return;
+      } catch (_) {}
+    }
+
+    await _enqueueAction(
+      'DELETE_CHECKLIST',
+      {'id': id, 'taskId': taskId},
+    );
+  }
+
+  // ─── COMMENT METHODS ──────────────────────────────────────────────────────
+  Future<List<TaskComment>> getComments(String taskId, {required bool isOnline}) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get('/tasks/$taskId/comments');
+        final raw = _unwrap(response.data);
+        if (raw is List) {
+          final comments = raw
+              .whereType<Map>()
+              .map((json) => TaskComment.fromJson(Map<String, dynamic>.from(json)))
+              .toList();
+          await _dbHelper.cacheComments(taskId, comments);
+          return comments;
+        }
+      } catch (_) {}
+    }
+    return _dbHelper.getCachedComments(taskId);
+  }
+
+  Future<TaskComment> createComment({
+    required String taskId,
+    required String content,
+    required String userId,
+    required String userName,
+    String? userAvatarUrl,
+    required bool isOnline,
+  }) async {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) throw const TaskException('Comment content cannot be empty or whitespace only.');
+    if (trimmed.length > 1000) throw const TaskException('Comment content cannot exceed 1000 characters.');
+
+    final comment = TaskComment(
+      id: _uuid.v4(),
+      taskId: taskId,
+      userId: userId,
+      userName: userName,
+      userAvatarUrl: userAvatarUrl,
+      content: trimmed,
+      createdAt: DateTime.now(),
+    );
+
+    await _dbHelper.saveCachedComment(comment);
+
+    if (isOnline) {
+      try {
+        final response = await _dio.post(
+          '/tasks/$taskId/comments',
+          data: {'id': comment.id, 'content': comment.content},
+        );
+        final raw = _unwrap(response.data);
+        if (raw is Map) {
+          final synced = TaskComment.fromJson(Map<String, dynamic>.from(raw));
+          await _dbHelper.saveCachedComment(synced);
+          return synced;
+        }
+      } catch (_) {}
+    }
+
+    await _enqueueAction(
+      'CREATE_COMMENT',
+      {'id': comment.id, 'taskId': taskId, 'content': comment.content},
+    );
+
+    return comment;
+  }
+
+  Future<void> deleteComment({
+    required String id,
+    required String taskId,
+    required bool isOnline,
+  }) async {
+    await _dbHelper.deleteCachedComment(id);
+
+    if (isOnline) {
+      try {
+        await _dio.delete('/tasks/comments/$id');
+        return;
+      } catch (_) {}
+    }
+
+    await _enqueueAction(
+      'DELETE_COMMENT',
+      {'id': id, 'taskId': taskId},
+    );
+  }
+
+  // ─── ACTIVITY LOG METHODS ─────────────────────────────────────────────────
+  Future<List<ActivityLog>> getActivities(String taskId, {required bool isOnline}) async {
+    if (isOnline) {
+      try {
+        final response = await _dio.get('/tasks/$taskId/activities');
+        final raw = _unwrap(response.data);
+        if (raw is List) {
+          final logs = raw
+              .whereType<Map>()
+              .map((json) => ActivityLog.fromJson(Map<String, dynamic>.from(json)))
+              .toList();
+          await _dbHelper.cacheAuditLogs(taskId, logs);
+          return logs;
+        }
+      } catch (_) {}
+    }
+    return _dbHelper.getCachedAuditLogs(taskId);
   }
 }
 

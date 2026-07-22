@@ -1,7 +1,5 @@
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 generator client {
@@ -24,6 +22,7 @@ model User {
   notifications        Notification[]    @relation("userNotifications")
   createdNotifications Notification[]    @relation("creatorNotifications")
   auditLogs            AuditLog[]
+  comments             TaskComment[]
 }
 
 model ForgotPasswordHistory {
@@ -76,6 +75,28 @@ model Task {
   dueDate     DateTime?
   updatedAt   DateTime @updatedAt @default(now())
   createdAt   DateTime @default(now())
+
+  checklists  TaskChecklist[]
+  comments    TaskComment[]
+}
+
+model TaskChecklist {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title     String
+  isDone    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
 }
 
 model Notification {
