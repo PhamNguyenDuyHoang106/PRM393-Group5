@@ -1,5 +1,10 @@
 datasource db {
   provider = "postgresql"
+  // Prisma CLI 6.x still requires a schema-level url for `generate`/`get-config`
+  // validation; prisma.config.ts's `datasource.url` override (DIRECT_URL,
+  // session-mode) is only consumed by migrate/db push/studio. Runtime queries
+  // never use this — PrismaService connects via a raw `pg` Pool (DATABASE_URL).
+  url      = env("DATABASE_URL")
 }
 
 generator client {
